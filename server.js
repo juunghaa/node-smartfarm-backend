@@ -26,111 +26,94 @@ const pool = new Pool({
 // const DURATION_MS = 8000;
 // 자동 물주기 룰 (히스테리시스)
 let lastWatered = 0;
-let wateringLocked = false;     // ✅ 한 번 물 주면 잠금
+let wateringLocked = false;     // 한 번 물 주면 잠금
 const COOLDOWN_MS = 15000;      // 최소 쿨다운(안전장치)
-const ON_THRESHOLD = 30;        // ✅ 이 값 아래면 물 주기 시작
-const OFF_THRESHOLD = 40;       // ✅ 이 값 이상이면 잠금 해제
+const ON_THRESHOLD = 30;        // 이 값 아래면 물 주기 시작
+const OFF_THRESHOLD = 40;       // 이 값 이상이면 잠금 해제
 const DURATION_MS = 8000;
 
 
-// MQTT client
-const client = mqtt.connect(MQTT_URL);
+// MQTT client (Render에서는 끌 수 있게)
+if (ENABLE_MQTT) {
+  client = mqtt.connect(MQTT_URL);
 
-client.on("connect", () => {
-  console.log("✅ MQTT connected:", MQTT_URL);
-  client.subscribe(SENSOR_TOPIC, (err) => {
-    if (err) console.error("❌ MQTT subscribe error:", err);
-    else console.log("📡 Subscribed:", SENSOR_TOPIC);
+  client.on("connect", () => {
+    console.log("MQTT connected:", MQTT_URL);
+    client.subscribe(SENSOR_TOPIC, (err) => {
+      if (err) console.error("MQTT subscribe error:", err);
+      else console.log("Subscribed:", SENSOR_TOPIC);
+    });
   });
-});
 
-client.on("message", async (topic, message) => {
-  if (topic !== SENSOR_TOPIC) return;
+  client.on("message", async (topic, message) => {
+    if (topic !== SENSOR_TOPIC) return;
 
-  let data;
-  try {
-    data = JSON.parse(message.toString());
-  } catch {
-    return;
-  }
+    let data;
+    try {
+      data = JSON.parse(message.toString());
+    } catch {
+      return;
+    }
 
-  const greenhouseId = data.greenhouseId ?? "gh1";
-  const temperature = Number(data.temperature);
-  const humidity = Number(data.humidity);
-  const soil = Number(data.soilMoisture);
-  const ts = data.ts ? new Date(data.ts) : new Date();
+    const greenhouseId = data.greenhouseId ?? "gh1";
+    const temperature = Number(data.temperature);
+    const humidity = Number(data.humidity);
+    const soil = Number(data.soilMoisture);
+    const ts = data.ts ? new Date(data.ts) : new Date();
 
-  // 1) 센서 DB 저장
-  try {
-    await pool.query(
-      `insert into sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts)
-       values ($1, $2, $3, $4, $5)`,
-      [
-        greenhouseId,
-        Number.isNaN(temperature) ? null : temperature,
-        Number.isNaN(humidity) ? null : humidity,
-        Number.isNaN(soil) ? null : soil,
-        ts,
-      ]
-    );
-  } catch (e) {
-    console.error("❌ DB insert sensor_readings error:", e.message);
-  }
+    // 1) 센서 DB 저장
+    try {
+      await pool.query(
+        `insert into sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts)
+         values ($1, $2, $3, $4, $5)`,
+        [
+          greenhouseId,
+          Number.isNaN(temperature) ? null : temperature,
+          Number.isNaN(humidity) ? null : humidity,
+          Number.isNaN(soil) ? null : soil,
+          ts,
+        ]
+      );
+    } catch (e) {
+      console.error("DB insert sensor_readings error:", e.message);
+    }
 
-//   // 2) 자동 물주기
-//   const now = Date.now();
-//   if (!Number.isNaN(soil) && soil < THRESHOLD && now - lastWatered > COOLDOWN_MS) {
-//     console.log("💧 Auto Watering Triggered!");
+    // 2) 자동 물주기 (히스테리시스)
+    const now = Date.now();
+    if (Number.isNaN(soil)) return;
 
-//     // pump ON publish
-//     client.publish(PUMP_TOPIC, JSON.stringify({ action: "ON", duration: DURATION_MS }));
-//     lastWatered = now;
+    if (wateringLocked && soil >= OFF_THRESHOLD) {
+      wateringLocked = false;
+      console.log("🔓 Watering unlocked (soil high enough).");
+    }
 
-//     // actuator 로그 저장
-//     try {
-//       await pool.query(
-//         `insert into actuator_logs (greenhouse_id, actuator, action, duration_ms)
-//          values ($1, $2, $3, $4)`,
-//         [greenhouseId, "pump", "ON", DURATION_MS]
-//       );
-//     } catch (e) {
-//       console.error("❌ DB insert actuator_logs error:", e.message);
-//     }
-//   }
+    if (!wateringLocked && soil < ON_THRESHOLD && now - lastWatered > COOLDOWN_MS) {
+      console.log(`💧 Auto Watering Triggered! (soil=${soil})`);
 
-// 2) 자동 물주기 (히스테리시스)
-const now = Date.now();
-if (Number.isNaN(soil)) return;
+      client.publish(
+        PUMP_TOPIC,
+        JSON.stringify({ action: "ON", duration: DURATION_MS })
+      );
 
-// ✅ 잠금 해제 조건: 충분히 촉촉해지면(OFF_THRESHOLD 이상) 다시 자동 가능
-if (wateringLocked && soil >= OFF_THRESHOLD) {
-  wateringLocked = false;
-  console.log("🔓 Watering unlocked (soil high enough).");
+      lastWatered = now;
+      wateringLocked = true;
+
+      try {
+        await pool.query(
+          `insert into actuator_logs (greenhouse_id, actuator, action, duration_ms)
+           values ($1, $2, $3, $4)`,
+          [greenhouseId, "pump", "ON", DURATION_MS]
+        );
+      } catch (e) {
+        console.error("DB insert actuator_logs error:", e.message);
+      }
+    }
+  });
+
+  client.on("error", (err) => console.error("MQTT error:", err));
+} else {
+  console.log("MQTT disabled");
 }
-
-// ✅ 물 주기 조건: 잠금이 풀려있고, soil이 낮고, 쿨다운 지났을 때
-if (!wateringLocked && soil < ON_THRESHOLD && now - lastWatered > COOLDOWN_MS) {
-  console.log(`💧 Auto Watering Triggered! (soil=${soil})`);
-
-  client.publish(PUMP_TOPIC, JSON.stringify({ action: "ON", duration: DURATION_MS }));
-  lastWatered = now;
-  wateringLocked = true; // ✅ 물 준 직후 잠금
-
-  // actuator 로그 저장
-  try {
-    await pool.query(
-      `insert into actuator_logs (greenhouse_id, actuator, action, duration_ms)
-       values ($1, $2, $3, $4)`,
-      [greenhouseId, "pump", "ON", DURATION_MS]
-    );
-  } catch (e) {
-    console.error("❌ DB insert actuator_logs error:", e.message);
-  }
-}
-});
-
-client.on("error", (err) => console.error("❌ MQTT error:", err));
-  
 
 // ===== REST API =====
 
@@ -181,5 +164,5 @@ app.get("/api/actuators", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ API server running on http://localhost:${PORT}`);
+  console.log(`API server running on http://localhost:${PORT}`);
 });
