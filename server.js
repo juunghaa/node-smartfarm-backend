@@ -163,6 +163,6 @@ app.get("/api/actuators", async (req, res) => {
   res.json(rows);
 });
 
-app.listen(PORT, () => {
-  console.log(`API server running on http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`API server running on port ${PORT}`);
 });
