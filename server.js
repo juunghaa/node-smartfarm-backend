@@ -10,13 +10,36 @@ app.use(cors());
 app.use(express.json());
 
 // env
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = Number(process.env.PORT ?? 10000);
+const ENABLE_MQTT = process.env.ENABLE_MQTT === "true"; 
 const MQTT_URL = process.env.MQTT_URL ?? "mqtt://localhost:1883";
 const SENSOR_TOPIC = process.env.SENSOR_TOPIC ?? "farm/gh1/sensor";
 const PUMP_TOPIC = process.env.PUMP_TOPIC ?? "farm/gh1/actuator/pump";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
+
+// DB 연결 테스트 (로그 확인용)
+pool.connect((err) => {
+  if (err) console.error("DB Connection Error:", err.stack);
+  else console.log("DB Connected");
+});
+
+let client; // MQTT 클라이언트 변수 선언
+
+// 서버 시작 시 DB 정보 출력
+console.log("연결 시도 중인 DB 주소:", process.env.DATABASE_URL);
+
+pool.query('SELECT current_user, current_database()', (err, res) => {
+  if (err) {
+    console.error("❌ DB 연결 실패:", err.message);
+  } else {
+    console.log(`✅ DB 연결 성공! 유저: ${res.rows[0].current_user}, DB: ${res.rows[0].current_database}`);
+  }
 });
 
 // // 자동 물주기 룰
@@ -119,48 +142,63 @@ if (ENABLE_MQTT) {
 
 // 최신값 1개
 app.get("/api/latest", async (req, res) => {
-  const greenhouseId = req.query.greenhouseId ?? "gh1";
-  const { rows } = await pool.query(
-    `select greenhouse_id, temperature, humidity, soil_moisture, ts
-     from sensor_readings
-     where greenhouse_id = $1
-     order by ts desc
-     limit 1`,
-    [greenhouseId]
-  );
-  res.json(rows[0] ?? null);
+  try {
+    const greenhouseId = req.query.greenhouseId ?? "gh1";
+    const { rows } = await pool.query(
+      `select greenhouse_id, temperature, humidity, soil_moisture, ts
+       from sensor_readings
+       where greenhouse_id = $1
+       order by ts desc
+       limit 1`,
+      [greenhouseId]
+    );
+    res.json(rows[0] ?? null);
+  } catch (e) {
+    console.error("/api/latest error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // 최근 N분 히스토리
 app.get("/api/history", async (req, res) => {
-  const greenhouseId = req.query.greenhouseId ?? "gh1";
-  const minutes = Number(req.query.minutes ?? 60);
-  const safeMinutes = Number.isNaN(minutes) ? 60 : Math.min(Math.max(minutes, 1), 24 * 60);
+  try {
+    const greenhouseId = req.query.greenhouseId ?? "gh1";
+    const minutes = Number(req.query.minutes ?? 60);
+    const safeMinutes = Number.isNaN(minutes) ? 60 : Math.min(Math.max(minutes, 1), 24 * 60);
 
-  const { rows } = await pool.query(
-    `select greenhouse_id, temperature, humidity, soil_moisture, ts
-     from sensor_readings
-     where greenhouse_id = $1
-       and ts >= now() - ($2::text || ' minutes')::interval
-     order by ts asc`,
-    [greenhouseId, String(safeMinutes)]
-  );
+    const { rows } = await pool.query(
+      `select greenhouse_id, temperature, humidity, soil_moisture, ts
+       from sensor_readings
+       where greenhouse_id = $1
+         and ts >= now() - ($2::text || ' minutes')::interval
+       order by ts asc`,
+      [greenhouseId, String(safeMinutes)]
+    );
 
-  res.json(rows);
+    res.json(rows);
+  } catch (e) {
+    console.error("/api/history error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // 펌프 로그(옵션)
 app.get("/api/actuators", async (req, res) => {
-  const greenhouseId = req.query.greenhouseId ?? "gh1";
-  const { rows } = await pool.query(
-    `select greenhouse_id, actuator, action, duration_ms, ts
-     from actuator_logs
-     where greenhouse_id = $1
-     order by ts desc
-     limit 50`,
-    [greenhouseId]
-  );
-  res.json(rows);
+  try {
+    const greenhouseId = req.query.greenhouseId ?? "gh1";
+    const { rows } = await pool.query(
+      `select greenhouse_id, actuator, action, duration_ms, ts
+       from actuator_logs
+       where greenhouse_id = $1
+       order by ts desc
+       limit 50`,
+      [greenhouseId]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error("/api/actuators error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.listen(PORT, "0.0.0.0", () => {
