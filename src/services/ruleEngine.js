@@ -1,5 +1,6 @@
 // src/services/ruleEngine.js
 const { pool } = require("../db/pool");
+const { getLatestWeather } = require("./weatherService");
 
 // 자동 물주기 상태값
 let lastWatered = 0;
@@ -10,7 +11,8 @@ const OFF_THRESHOLD = 40;
 const DURATION_MS = 8000;
 
 async function runRules(data, publishFn) {
-  const { greenhouseId = "gh1", soil } = data;
+  const { greenhouseId = "gh1", soil, humidity, temperature, locationType = "indoor" } = data;
+
   const now = Date.now();
 
   if (Number.isNaN(soil)) return;
@@ -22,6 +24,15 @@ async function runRules(data, publishFn) {
   }
 
   if (!wateringLocked && soil < ON_THRESHOLD && now - lastWatered > COOLDOWN_MS) {
+    // 실외면 비 예보 확인
+    if (locationType === "outdoor") {
+        const weather = await getLatestWeather(greenhouseId);
+        if (weather && weather.rain_prob >= 50) {
+          console.log(`🌧️ 비 예보 ${weather.rain_prob}% → 자동 관수 건너뜀`);
+          return;
+        }
+    }  
+    
     console.log(`💧 Auto watering triggered (soil=${soil})`);
     publishFn("pump", { action: "ON", duration: DURATION_MS });
     lastWatered = now;
