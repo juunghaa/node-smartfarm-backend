@@ -1,21 +1,21 @@
-// mqtt 연결, ,센서 저장, 자동 물주기 로직 담당
-
+// src/services/mqttService.js
 const mqtt = require("mqtt");
 const { pool } = require("../db/pool");
-const {
-  ENABLE_MQTT,
-  MQTT_URL,
-  SENSOR_TOPIC,
-  PUMP_TOPIC,
-} = require("../config");
+const { ENABLE_MQTT, MQTT_URL, SENSOR_TOPIC, PUMP_TOPIC } = require("../config");
+const { runRules } = require("./ruleEngine");
 
-// 자동 물주기 룰 (히스테리시스)
-let lastWatered = 0;
-let wateringLocked = false;
-const COOLDOWN_MS = 15000;
-const ON_THRESHOLD = 30;
-const OFF_THRESHOLD = 40;
-const DURATION_MS = 8000;
+let client = null; // publishCommand에서 쓰려면 밖으로 빼야 함
+
+// 수동 제어용 publish 함수 — controlController에서 호출
+function publishCommand(actuator, payload) {
+  if (!client) {
+    console.warn("MQTT not connected, cannot publish");
+    return;
+  }
+  const topic = `smartfarm/${actuator}/command`;
+  client.publish(topic, JSON.stringify(payload));
+  console.log(`📤 Published to ${topic}:`, payload);
+}
 
 function initMqttService() {
   if (!ENABLE_MQTT) {
@@ -23,11 +23,10 @@ function initMqttService() {
     return;
   }
 
-  const client = mqtt.connect(MQTT_URL);
+  client = mqtt.connect(MQTT_URL);
 
   client.on("connect", () => {
     console.log("MQTT connected:", MQTT_URL);
-
     client.subscribe(SENSOR_TOPIC, (err) => {
       if (err) console.error("MQTT subscribe error:", err);
       else console.log("Subscribed:", SENSOR_TOPIC);
@@ -46,62 +45,35 @@ function initMqttService() {
 
     const greenhouseId = data.greenhouseId ?? "gh1";
     const temperature = Number(data.temperature);
-    const humidity = Number(data.humidity);
-    const soil = Number(data.soilMoisture);
-    const ts = data.ts ? new Date(data.ts) : new Date();
+    const humidity    = Number(data.humidity);
+    const soil        = Number(data.soilMoisture);
+    const ts          = data.ts ? new Date(data.ts) : new Date();
 
+    // 센서 데이터 DB 저장
     try {
       await pool.query(
-        `insert into sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts)
-         values ($1, $2, $3, $4, $5)`,
+        `INSERT INTO sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts)
+         VALUES ($1, $2, $3, $4, $5)`,
         [
           greenhouseId,
           Number.isNaN(temperature) ? null : temperature,
-          Number.isNaN(humidity) ? null : humidity,
-          Number.isNaN(soil) ? null : soil,
+          Number.isNaN(humidity)    ? null : humidity,
+          Number.isNaN(soil)        ? null : soil,
           ts,
         ]
       );
     } catch (e) {
-      console.error("DB insert sensor_readings error:", e.message);
+      console.error("sensor_readings insert error:", e.message);
     }
 
-    const now = Date.now();
-    if (Number.isNaN(soil)) return;
-
-    if (wateringLocked && soil >= OFF_THRESHOLD) {
-      wateringLocked = false;
-      console.log("🔓 Watering unlocked (soil high enough).");
-    }
-
-    if (!wateringLocked && soil < ON_THRESHOLD && now - lastWatered > COOLDOWN_MS) {
-      console.log(`💧 Auto Watering Triggered! (soil=${soil})`);
-
-      client.publish(
-        PUMP_TOPIC,
-        JSON.stringify({ action: "ON", duration: DURATION_MS })
-      );
-
-      lastWatered = now;
-      wateringLocked = true;
-
-      try {
-        await pool.query(
-          `insert into actuator_logs (greenhouse_id, actuator, action, duration_ms)
-           values ($1, $2, $3, $4)`,
-          [greenhouseId, "pump", "ON", DURATION_MS]
-        );
-      } catch (e) {
-        console.error("DB insert actuator_logs error:", e.message);
-      }
-    }
+    // 룰 엔진 실행 (물주기·환기·병해충·LED)
+    await runRules(
+      { greenhouseId, temperature, humidity, soil },
+      publishCommand  // publish 함수를 주입
+    );
   });
 
-  client.on("error", (err) => {
-    console.error("MQTT error:", err);
-  });
+  client.on("error", (err) => console.error("MQTT error:", err));
 }
 
-module.exports = {
-  initMqttService,
-};
+module.exports = { initMqttService, publishCommand };

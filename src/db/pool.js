@@ -5,9 +5,7 @@ const { DATABASE_URL } = require("../config");
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: DATABASE_URL.includes("localhost") ? false : { rejectUnauthorized: false },
 });
 
 async function testDbConnection() {
