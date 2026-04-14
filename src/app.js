@@ -11,6 +11,8 @@ app.use(express.json());
 app.use("/api", require("./routes/apiRoutes")); 
 app.use("/api", require("./routes/control")); 
 app.use("/api", require("./routes/weather")); 
+app.use("/api", require("./routes/greenhouse"));
+app.use("/api", require("./routes/alert"));
 
 module.exports = app;
 
