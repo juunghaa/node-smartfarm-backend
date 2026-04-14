@@ -68,8 +68,15 @@ function initMqttService() {
 
     // 룰 엔진 실행 (물주기·환기·병해충·LED)
     await runRules(
-      { greenhouseId, temperature, humidity, soil },
-      publishCommand  // publish 함수를 주입
+      {
+        greenhouseId,
+        plantType: data.plantType ?? "sansevieria", // 센서 메시지에 포함되거나 기본값
+        temperature,
+        humidity,
+        soil,
+        lux: Number(data.lux) || NaN,
+      },
+      publishCommand
     );
   });
 
