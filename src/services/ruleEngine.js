@@ -73,15 +73,15 @@ const COOLDOWN_MS = 15000;
 
 // ── 메인 룰 실행 함수 ────────────────────────────────────
 async function runRules(data, publishFn) {
-  const {
-    greenhouseId = "gh1",
-    plantType = "sansevieria",
-    soil,
-    humidity,
-    temperature,
-    lux,
-  } = data;
+  const { greenhouseId = "gh1", soil, humidity, temperature, lux } = data
 
+  // plantType을 DB에서 가져옴
+  const { rows } = await pool.query(
+    `SELECT plant_type, location_type FROM greenhouses WHERE greenhouse_id = $1`,
+    [greenhouseId]
+  );
+  const { plant_type: plantType, location_type: locationType } = rows[0] ?? {};
+  
   const config = PLANT_CONFIG[plantType];
   if (!config) {
     console.warn(`⚠️ Unknown plantType: ${plantType}, skipping rules`);

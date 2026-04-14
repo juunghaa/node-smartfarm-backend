@@ -12,8 +12,15 @@ const {
 
 async function fetchAndSaveWeather(greenhouseId = "gh1", locationType = "outdoor") {
   try {
-    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${OPENWEATHER_LAT}&lon=${OPENWEATHER_LON}&appid=${OPENWEATHER_API_KEY}&units=metric&cnt=2`;
-
+    // 온실 위치 먼저 조회
+    const { rows } = await pool.query(
+      `SELECT lat, lon FROM greenhouses WHERE greenhouse_id = $1`,
+      [greenhouseId]
+    );
+    const { lat, lon } = rows[0] ?? { lat: OPENWEATHER_LAT, lon: OPENWEATHER_LON };
+    
+    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&cnt=2`;
+    
     const res = await fetch(url);
     if (!res.ok) throw new Error(`OpenWeather API error: ${res.status}`);
 

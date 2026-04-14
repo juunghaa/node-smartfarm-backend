@@ -47,6 +47,7 @@ function initMqttService() {
     const temperature = Number(data.temperature);
     const humidity    = Number(data.humidity);
     const soil        = Number(data.soilMoisture);
+    const lux         = Number(data.lux);
     const ts          = data.ts ? new Date(data.ts) : new Date();
 
     // 센서 데이터 DB 저장
