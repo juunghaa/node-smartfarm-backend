@@ -13,6 +13,7 @@ app.use("/api", require("./routes/control"));
 app.use("/api", require("./routes/weather")); 
 app.use("/api", require("./routes/greenhouse"));
 app.use("/api", require("./routes/alert"));
+app.use("/api", require("./routes/plant"));
 
 module.exports = app;
 
