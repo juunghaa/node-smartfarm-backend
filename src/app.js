@@ -14,6 +14,7 @@ app.use("/api", require("./routes/weather"));
 app.use("/api", require("./routes/greenhouse"));
 app.use("/api", require("./routes/alert"));
 app.use("/api", require("./routes/plant"));
+app.use("/api", require("./routes/report"));
 
 module.exports = app;
 

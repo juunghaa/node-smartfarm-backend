@@ -27,7 +27,7 @@ async function recommend(req, res) {
     }
 
     // 2. Gemini로 추천 이유 생성
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const prompt = `
 당신은 식물 전문가입니다. 사용자 환경에 맞는 식물 추천 이유를 친근하게 설명해주세요.

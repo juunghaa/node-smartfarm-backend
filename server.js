@@ -7,6 +7,7 @@ const { PORT } = require("./src/config");
 const { testDbConnection, logCurrentDbInfo } = require("./src/db/pool");
 const { initMqttService } = require("./src/services/mqttService");
 const { initWeatherScheduler } = require("./src/services/weatherService");
+const { initReportScheduler } = require("./src/services/reportService");
 
 async function startServer() {
   try {
@@ -15,6 +16,7 @@ async function startServer() {
 
     initMqttService();
     initWeatherScheduler();
+    initReportScheduler();
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`API server running on port ${PORT}`);
