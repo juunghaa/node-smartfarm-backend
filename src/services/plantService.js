@@ -1,5 +1,6 @@
 // src/services/plantService.js
 const { pool } = require("../db/pool");
+const xml2js = require("xml2js");
 
 // 사용자 환경 조건 → 식물 필터링
 async function recommendPlants({ locationType, lightLevel, waterFreq, bugSensitive }) {
@@ -18,23 +19,54 @@ async function recommendPlants({ locationType, lightLevel, waterFreq, bugSensiti
   return rows;
 }
 
-// 공공데이터 API 연동 (키 승인 후 이 함수만 구현하면 됨)
+// 농사로 식물 번호 매핑 (실내 식물만 가능)
+const NONGSARO_ID_MAP = {
+    sansevieria: "19448",
+    monstera:    "16449",
+  };
+  
+// 공공데이터 API 연동
 async function syncFromPublicApi() {
-  const apiKey = process.env.NONGSARO_API_KEY;
-  if (!apiKey) {
-    console.log("📋 공공데이터 API 키 없음 → 씨드 데이터 사용 중");
-    return;
+    const apiKey = process.env.NONGSARO_API_KEY;
+    if (!apiKey) {
+      console.log("공공데이터 API 키 없음 → 씨드 데이터 사용 중");
+      return;
+    }
+  
+    console.log("농사로 API 이미지 동기화 시작...");
+  
+    for (const [plantKey, cntntsNo] of Object.entries(NONGSARO_ID_MAP)) {
+      try {
+        const url = `http://api.nongsaro.go.kr/service/garden/gardenDtl?apiKey=${apiKey}&cntntsNo=${cntntsNo}`;
+        const res = await fetch(url);
+        const xmlText = await res.text();
+  
+        // XML 파싱
+        const parsed = await xml2js.parseStringPromise(xmlText, { explicitArray: false });
+        const item = parsed?.response?.body?.item;
+  
+        if (!item) {
+          console.warn(`⚠️ [${plantKey}] 식물 데이터 없음`);
+          continue;
+        }
+  
+        // 대표 이미지 URL 추출 (rtnFileUrl에서 첫 번째)
+        const imageUrls = item.rtnFileUrl?._ ?? item.rtnFileUrl ?? "";
+        const firstImageUrl = imageUrls.split("|")[0] ?? null;
+  
+        // DB 업데이트
+        await pool.query(
+          `UPDATE plants SET image_url = $1 WHERE plant_key = $2`,
+          [firstImageUrl, plantKey]
+        );
+  
+        console.log(`[${plantKey}] 이미지 업데이트 완료: ${firstImageUrl}`);
+      } catch (e) {
+        console.error(`[${plantKey}] 동기화 실패:`, e.message);
+      }
+    }
+  
+    console.log("농사로 API 동기화 완료");
   }
-
-  try {
-    const url = `http://api.nongsaro.go.kr/service/garden/indoorGardenList?apiKey=${apiKey}&numOfRows=100`;
-    const res = await fetch(url);
-    const json = await res.json();
-    // 승인 후 파싱 로직 추가 예정
-    console.log("✅ 공공데이터 API 동기화 완료");
-  } catch (e) {
-    console.error("공공데이터 API 동기화 실패:", e.message);
-  }
-}
 
 module.exports = { recommendPlants, syncFromPublicApi };

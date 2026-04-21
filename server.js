@@ -8,6 +8,7 @@ const { testDbConnection, logCurrentDbInfo } = require("./src/db/pool");
 const { initMqttService } = require("./src/services/mqttService");
 const { initWeatherScheduler } = require("./src/services/weatherService");
 const { initReportScheduler } = require("./src/services/reportService");
+const { syncFromPublicApi } = require("./src/services/plantService");
 
 async function startServer() {
   try {
@@ -18,6 +19,8 @@ async function startServer() {
     initWeatherScheduler();
     initReportScheduler();
 
+    await syncFromPublicApi();
+    
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`API server running on port ${PORT}`);
     });
