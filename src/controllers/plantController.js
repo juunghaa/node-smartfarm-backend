@@ -5,6 +5,8 @@ const { askGemini } = require("../services/aiService");
 
 // POST /api/plant/recommend
 async function recommend(req, res) {
+    console.log("[/api/plant/recommend] called:", req.body);
+
   try {
     const {
       locationType,   // "indoor" | "outdoor"
@@ -18,13 +20,19 @@ async function recommend(req, res) {
     }
 
     // 1. 조건 매칭으로 식물 후보 추출
-    const plants = await recommendPlants({ locationType, lightLevel, waterFreq, bugSensitive });
+    const plants = await recommendPlants({
+      locationType,
+      lightLevel,
+      waterFreq,
+      bugSensitive,
+    });
 
     if (plants.length === 0) {
       return res.json({ plants: [], message: "조건에 맞는 식물이 없습니다" });
     }
 
-    // 2. Gemini로 추천 이유 생성 (프롬프트 구성)
+    console.log("[recommend] Gemini 호출 직전");
+    // 2. Gemini로 추천 이유 생성
     const prompt = `
 당신은 식물 전문가입니다. 사용자 환경에 맞는 식물 추천 이유를 친근하게 설명해주세요.
 
@@ -44,31 +52,35 @@ async function recommend(req, res) {
 }
     `.trim();
 
-    // 헬퍼 함수 호출 (JSON 옵션 true)
-    // (여기서 재시도와 파싱을 한 번에 처리!)
-    const reasons = await askGemini(prompt, true).catch(() => ({}));
+    let reasons = {};
+
+    try {
+      reasons = await askGemini(prompt, true);
+    } catch (err) {
+      console.error("[recommend] askGemini 실패:", err.code || err.message);
+      reasons = {};
+    }
 
     // 3. 응답 조합
-    const response = plants.map(plant => ({
-        plantKey:     plant.plant_key,
-        nameKo:       plant.name_ko,
-        locationType: plant.location_type,
-        difficulty:   plant.difficulty,
-        bugResistant: plant.bug_resistant,
-        lightLevel:   plant.light_level,
-        waterFreq:    plant.water_freq,
-        description:  plant.description,
-        imageUrl:     plant.image_url,
-        // AI 응답이 없으면 DB의 기본 설명을 사용하도록 방어 코드 작성
-        reason:       reasons[plant.plant_key] ?? plant.description,
-      }));
-  
-      res.json({ plants: response });
-    } catch (e) {
-      console.error("/api/plant/recommend error:", e.message);
-      res.status(500).json({ error: "추천 서비스 일시적 오류: " + e.message });
-    }
+    const response = plants.map((plant) => ({
+      plantKey: plant.plant_key,
+      nameKo: plant.name_ko,
+      locationType: plant.location_type,
+      difficulty: plant.difficulty,
+      bugResistant: plant.bug_resistant,
+      lightLevel: plant.light_level,
+      waterFreq: plant.water_freq,
+      description: plant.description,
+      imageUrl: plant.image_url,
+      reason: reasons[plant.plant_key] ?? plant.description,
+    }));
+
+    res.json({ plants: response });
+  } catch (e) {
+    console.error("/api/plant/recommend error:", e.message);
+    res.status(500).json({ error: "추천 서비스 일시적 오류: " + e.message });
   }
+}
 
 // POST /api/plant/register
 async function register(req, res) {
@@ -79,7 +91,6 @@ async function register(req, res) {
       return res.status(400).json({ error: "plantKey는 필수입니다" });
     }
 
-    // 1. user_plants에 저장
     await pool.query(
       `INSERT INTO user_plants (greenhouse_id, plant_key)
        VALUES ($1, $2)
@@ -87,7 +98,6 @@ async function register(req, res) {
       [greenhouseId, plantKey]
     );
 
-    // 2. greenhouses 테이블 plant_type도 업데이트
     await pool.query(
       `UPDATE greenhouses SET plant_type = $1 WHERE greenhouse_id = $2`,
       [plantKey, greenhouseId]
