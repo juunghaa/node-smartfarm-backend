@@ -1,13 +1,11 @@
 // src/services/reportService.js
 const cron = require("node-cron");
 const { pool } = require("../db/pool");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const { askGemini } = require("./aiService");
 
 // ── 하루 데이터 집계 ─────────────────────────────────────
 async function aggregateDailyData(greenhouseId) {
-  // 오늘 날짜 기준 센서 평균
+  // 오늘 날짜 기준 센서 평균 (PostgreSQL의 CURRENT_DATE 활용)
   const { rows: sensorRows } = await pool.query(
     `SELECT
        ROUND(AVG(temperature)::numeric, 1) AS avg_temp,
@@ -43,33 +41,15 @@ async function aggregateDailyData(greenhouseId) {
   );
 
   return {
-    sensor: sensorRows[0],
+    sensor: sensorRows[0] || {},
     alerts: alertRows,
     wateringCount: parseInt(waterRows[0]?.count ?? 0),
   };
 }
-// ── Gemini 재시도 헬퍼 ────────
-async function callGeminiWithRetry(prompt, retries = 2) {
-    for (let i = 0; i <= retries; i++) {
-      try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-      } catch (e) {
-        if (e.message.includes("429") && i < retries) {
-          const waitSec = 30;
-          console.log(`⏳ Gemini 할당량 초과 → ${waitSec}초 후 재시도 (${i + 1}/${retries})`);
-          await new Promise(r => setTimeout(r, waitSec * 1000));
-        } else {
-          throw e;
-        }
-      }
-    }
-  }
 
 // ── Gemini 리포트 생성 ───────────────────────────────────
 async function generateReport(greenhouseId) {
-  // 온실 식물 정보 조회
+  // 온실 식물 정보 조회 (JOIN을 써서 한 번에 가져오기)
   const { rows: ghRows } = await pool.query(
     `SELECT g.plant_type, p.name_ko
      FROM greenhouses g
@@ -81,7 +61,7 @@ async function generateReport(greenhouseId) {
 
   const { sensor, alerts, wateringCount } = await aggregateDailyData(greenhouseId);
 
-  // 알림 요약
+  // 알림 요약 로직 (가독성 좋게 유지)
   const alertSummary = alerts.length === 0
     ? "오늘은 특이 알림 없음"
     : alerts.map(a => {
@@ -117,14 +97,16 @@ ${alertSummary}
   `.trim();
 
   try {
-    return await callGeminiWithRetry(prompt);
+    // 헬퍼 함수 호출 (JSON이 아닌 일반 텍스트 리포트이므로 false)
+    return await askGemini(prompt, false);
   } catch (e) {
     console.error("Gemini 리포트 생성 실패:", e.message);
-    return `오늘 ${plantName} 상태 요약: 평균 온도 ${sensor.avg_temp}°C, 습도 ${sensor.avg_humidity}%, 관수 ${wateringCount}회 진행했어요.`;
+    // 폴백(Fallback) 메시지: AI가 실패해도 최소한의 정보는 전달
+    return `오늘 ${plantName} 상태 요약: 평균 온도 ${sensor.avg_temp ?? "?"}°C, 습도 ${sensor.avg_humidity ?? "?"}%였고, 관수는 ${wateringCount}회 진행했어요. 내일도 힘내봐요! 🌱`;
   }
 }
 
-// ── 리포트 저장 ──────────────────────────────────────────
+// ── 리포트 저장 (UPSERT 로직 유지) ────────────────────────
 async function saveReport(greenhouseId) {
   const { sensor, alerts, wateringCount } = await aggregateDailyData(greenhouseId);
   const reportText = await generateReport(greenhouseId);
@@ -156,7 +138,7 @@ async function saveReport(greenhouseId) {
 
 // ── 스케줄러 초기화 ──────────────────────────────────────
 function initReportScheduler() {
-  // 매일 20:00 실행
+  // 매일 20:00 실행 (프로젝트 마감 전 테스트할 때는 시간 조절해서 써!)
   cron.schedule("0 20 * * *", async () => {
     console.log("📋 일일 리포트 스케줄러 실행");
     try {

@@ -1,9 +1,7 @@
 // src/controllers/plantController.js
 const { pool } = require("../db/pool");
 const { recommendPlants } = require("../services/plantService");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const { askGemini } = require("../services/aiService");
 
 // POST /api/plant/recommend
 async function recommend(req, res) {
@@ -26,9 +24,7 @@ async function recommend(req, res) {
       return res.json({ plants: [], message: "조건에 맞는 식물이 없습니다" });
     }
 
-    // 2. Gemini로 추천 이유 생성
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
+    // 2. Gemini로 추천 이유 생성 (프롬프트 구성)
     const prompt = `
 당신은 식물 전문가입니다. 사용자 환경에 맞는 식물 추천 이유를 친근하게 설명해주세요.
 
@@ -48,38 +44,31 @@ async function recommend(req, res) {
 }
     `.trim();
 
-    const result = await model.generateContent(prompt);
-    let reasons = {};
-
-    try {
-      const text = result.response.text()
-        .replace(/```json/g, "").replace(/```/g, "").trim();
-      reasons = JSON.parse(text);
-    } catch {
-      // Gemini 파싱 실패해도 추천 결과는 반환
-      console.warn("Gemini 응답 파싱 실패, 기본 설명 사용");
-    }
+    // 헬퍼 함수 호출 (JSON 옵션 true)
+    // (여기서 재시도와 파싱을 한 번에 처리!)
+    const reasons = await askGemini(prompt, true).catch(() => ({}));
 
     // 3. 응답 조합
     const response = plants.map(plant => ({
-      plantKey:     plant.plant_key,
-      nameKo:       plant.name_ko,
-      locationType: plant.location_type,
-      difficulty:   plant.difficulty,
-      bugResistant: plant.bug_resistant,
-      lightLevel:   plant.light_level,
-      waterFreq:    plant.water_freq,
-      description:  plant.description,
-      imageUrl:     plant.image_url,
-      reason:       reasons[plant.plant_key] ?? plant.description,
-    }));
-
-    res.json({ plants: response });
-  } catch (e) {
-    console.error("/api/plant/recommend error:", e.message);
-    res.status(500).json({ error: e.message });
+        plantKey:     plant.plant_key,
+        nameKo:       plant.name_ko,
+        locationType: plant.location_type,
+        difficulty:   plant.difficulty,
+        bugResistant: plant.bug_resistant,
+        lightLevel:   plant.light_level,
+        waterFreq:    plant.water_freq,
+        description:  plant.description,
+        imageUrl:     plant.image_url,
+        // AI 응답이 없으면 DB의 기본 설명을 사용하도록 방어 코드 작성
+        reason:       reasons[plant.plant_key] ?? plant.description,
+      }));
+  
+      res.json({ plants: response });
+    } catch (e) {
+      console.error("/api/plant/recommend error:", e.message);
+      res.status(500).json({ error: "추천 서비스 일시적 오류: " + e.message });
+    }
   }
-}
 
 // POST /api/plant/register
 async function register(req, res) {
