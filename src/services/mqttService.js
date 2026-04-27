@@ -1,25 +1,37 @@
 // src/services/mqttService.js
 const mqtt = require("mqtt");
 const { pool } = require("../db/pool");
-const { ENABLE_MQTT, MQTT_URL, MQTT_USERNAME, MQTT_PASSWORD, SENSOR_TOPIC, PUMP_TOPIC } = require("../config");
+const { ENABLE_MQTT, MQTT_URL, MQTT_USERNAME, MQTT_PASSWORD, SENSOR_TOPIC } = require("../config");
 const { runRules } = require("./ruleEngine");
 
 let client = null; // publishCommand에서 쓰려면 밖으로 빼야 함
 
+function extractGreenhouseIdFromTopic(topic) {
+  const parts = String(topic).split("/");
+  if (parts.length >= 3 && parts[0] === "farm" && parts[2] === "sensor") {
+    return parts[1];
+  }
+  return null;
+}
+
 // 수동 제어용 publish 함수 — controlController에서 호출
-function publishCommand(actuator, payload) {
+function publishCommand(greenhouseId, actuator, payload) {
   if (!client) {
     console.warn("MQTT not connected, cannot publish");
     return;
   }
-  // const topic = `smartfarm/${actuator}/command`;
-  const topic = actuator === "pump" ? PUMP_TOPIC : `farm/gh1/actuator/${actuator}`;
+  if (!greenhouseId) {
+    console.warn("No greenhouseId provided, cannot publish");
+    return;
+  }
+
+  const topic = `farm/${greenhouseId}/actuator/${actuator}`;
   client.publish(topic, JSON.stringify(payload));
   console.log(`📤 Published to ${topic}:`, payload);
 }
 
 function initMqttService() {
-  if (ENABLE_MQTT !== "true") {
+  if (!ENABLE_MQTT) {
     console.log("MQTT disabled");
     return;
   }
@@ -41,7 +53,8 @@ function initMqttService() {
   });
 
   client.on("message", async (topic, message) => {
-    if (topic !== SENSOR_TOPIC) return;
+    const topicGreenhouseId = extractGreenhouseIdFromTopic(topic);
+    if (!topicGreenhouseId) return;
 
     let data;
     try {
@@ -50,7 +63,7 @@ function initMqttService() {
       return;
     }
 
-    const greenhouseId = data.greenhouseId ?? "gh1";
+    const greenhouseId = data.greenhouseId ?? topicGreenhouseId;
     const temperature = Number(data.temperature);
     const humidity    = Number(data.humidity);
     const soil        = Number(data.soilMoisture);
@@ -84,7 +97,7 @@ function initMqttService() {
         soil,
         lux: Number(data.lux) || NaN,
       },
-      publishCommand
+      (actuator, payload) => publishCommand(greenhouseId, actuator, payload)
     );
   });
 

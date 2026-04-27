@@ -5,7 +5,11 @@ const { saveReport } = require("../services/reportService");
 // GET /api/reports — 리포트 히스토리 조회
 async function getReports(req, res) {
   try {
-    const { greenhouseId = "gh1", limit = 7 } = req.query;
+    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
+    const { limit = 7 } = req.query;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
     const safeLimit = Math.min(parseInt(limit) || 7, 30);
 
     const { rows } = await pool.query(
@@ -25,7 +29,10 @@ async function getReports(req, res) {
 // GET /api/reports/today — 오늘 리포트만
 async function getTodayReport(req, res) {
   try {
-    const { greenhouseId = "gh1" } = req.query;
+    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
     const { rows } = await pool.query(
       `SELECT * FROM daily_reports
        WHERE greenhouse_id = $1
@@ -42,7 +49,10 @@ async function getTodayReport(req, res) {
 // POST /api/reports/generate — 수동 즉시 생성 (테스트용)
 async function generateNow(req, res) {
   try {
-    const { greenhouseId = "gh1" } = req.body;
+    const greenhouseId = req.body.greenhouseId ?? req.body.greenhouseID;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
     const reportText = await saveReport(greenhouseId);
     res.json({ ok: true, reportText });
   } catch (e) {

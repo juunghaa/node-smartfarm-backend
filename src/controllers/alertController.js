@@ -2,7 +2,11 @@ const { pool } = require("../db/pool");
 
 async function getAlerts(req, res) {
   try {
-    const { greenhouseId = "gh1", limit = 20 } = req.query;
+    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
+    const { limit = 20 } = req.query;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
     const safeLimit = Math.min(parseInt(limit) || 20, 100);
     const { rows } = await pool.query(
       `SELECT * FROM alert_logs

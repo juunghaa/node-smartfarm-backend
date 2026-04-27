@@ -10,7 +10,10 @@ const {
   OPENWEATHER_LON,
 } = require("../config");
 
-async function fetchAndSaveWeather(greenhouseId = "gh1", locationType = "outdoor") {
+async function fetchAndSaveWeather(greenhouseId, locationType = "outdoor") {
+  if (!greenhouseId) {
+    throw new Error("greenhouseId is required");
+  }
   try {
     // 온실 위치 먼저 조회
     const { rows } = await pool.query(
@@ -47,7 +50,10 @@ async function fetchAndSaveWeather(greenhouseId = "gh1", locationType = "outdoor
   }
 }
 
-async function getLatestWeather(greenhouseId = "gh1") {
+async function getLatestWeather(greenhouseId) {
+  if (!greenhouseId) {
+    throw new Error("greenhouseId is required");
+  }
   const { rows } = await pool.query(
     `SELECT * FROM weather_logs
      WHERE greenhouse_id = $1
@@ -57,6 +63,15 @@ async function getLatestWeather(greenhouseId = "gh1") {
   return rows[0] ?? null;
 }
 
+async function fetchAndSaveWeatherForAllGreenhouses() {
+  const { rows } = await pool.query(
+    `SELECT greenhouse_id, location_type FROM greenhouses`
+  );
+  for (const row of rows) {
+    await fetchAndSaveWeather(row.greenhouse_id, row.location_type ?? "outdoor");
+  }
+}
+
 function initWeatherScheduler() {
   // 10분마다 날씨 수집 */10 * * * *
   // 30분마다 날씨 수집 */30 * * * *
@@ -64,11 +79,15 @@ function initWeatherScheduler() {
   // 매일 0시마다 날씨 수집 0 0 * * *
   cron.schedule("0 * * * *", () => {
     console.log("⏰ Weather scheduler triggered");
-    fetchAndSaveWeather();
+    fetchAndSaveWeatherForAllGreenhouses().catch((e) => {
+      console.error("weather scheduler error:", e.message);
+    });
   });
 
   // 서버 시작할 때 한 번 즉시 실행
-  fetchAndSaveWeather();
+  fetchAndSaveWeatherForAllGreenhouses().catch((e) => {
+    console.error("initial weather fetch error:", e.message);
+  });
   console.log("🌤️ Weather scheduler initialized");
 }
 

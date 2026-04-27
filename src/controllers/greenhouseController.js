@@ -2,7 +2,10 @@ const { pool } = require("../db/pool");
 
 async function getGreenhouse(req, res) {
   try {
-    const { greenhouseId = "gh1" } = req.query;
+    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
     const { rows } = await pool.query(
       `SELECT * FROM greenhouses WHERE greenhouse_id = $1`,
       [greenhouseId]
@@ -17,12 +20,17 @@ async function getGreenhouse(req, res) {
 async function upsertGreenhouse(req, res) {
   try {
     const {
-      greenhouseId = "gh1",
+      greenhouseId: rawGreenhouseId,
+      greenhouseID,
       plantType = "sansevieria",
       locationType = "indoor",
       lat,
       lon,
     } = req.body;
+    const greenhouseId = rawGreenhouseId ?? greenhouseID;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO greenhouses (greenhouse_id, plant_type, location_type, lat, lon)

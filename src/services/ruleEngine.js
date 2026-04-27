@@ -114,7 +114,11 @@ async function closeWindow(greenhouseId, state, publishFn, reason) {
 
 // ── 메인 룰 실행 함수 ────────────────────────────────────
 async function runRules(data, publishFn) {
-  const { greenhouseId = "gh1", soil, humidity, temperature } = data;
+  const { greenhouseId, soil, humidity, temperature } = data;
+  if (!greenhouseId) {
+    console.warn("⚠️ runRules called without greenhouseId");
+    return;
+  }
 
   // greenhouses DB에서 설정 조회
   const { rows } = await pool.query(

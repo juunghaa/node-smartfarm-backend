@@ -3,7 +3,10 @@ const { getLatestWeather } = require("../services/weatherService");
 
 async function getWeather(req, res) {
   try {
-    const { greenhouseId = "gh1" } = req.query;
+    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
     const data = await getLatestWeather(greenhouseId);
     res.json(data);
   } catch (e) {

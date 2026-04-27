@@ -4,7 +4,12 @@ const { pool } = require("../db/pool");
 
 async function manualControl(req, res) {
   try {
-    const { greenhouseId = "gh1", actuator, action } = req.body;
+    const greenhouseId = req.body.greenhouseId ?? req.body.greenhouseID;
+    const { actuator, action } = req.body;
+
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
 
     const allowed = ["pump", "led", "window"];
     if (!allowed.includes(actuator)) {
@@ -14,7 +19,7 @@ async function manualControl(req, res) {
       return res.status(400).json({ error: "Invalid action" });
     }
 
-    publishCommand(actuator, { action });
+    publishCommand(greenhouseId, actuator, { action });
 
     await pool.query(
       `INSERT INTO actuator_logs (greenhouse_id, actuator, action, duration_ms)

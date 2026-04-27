@@ -4,7 +4,10 @@ const { pool } = require("../db/pool");
 
 async function getLatest(req, res) {
   try {
-    const greenhouseId = req.query.greenhouseId ?? "gh1";
+    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
 
     const { rows } = await pool.query(
       `select greenhouse_id, temperature, humidity, soil_moisture, ts
@@ -24,7 +27,10 @@ async function getLatest(req, res) {
 
 async function getHistory(req, res) {
   try {
-    const greenhouseId = req.query.greenhouseId ?? "gh1";
+    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
     const minutes = Number(req.query.minutes ?? 60);
     const safeMinutes = Number.isNaN(minutes)
       ? 60
@@ -48,7 +54,10 @@ async function getHistory(req, res) {
 
 async function getActuators(req, res) {
   try {
-    const greenhouseId = req.query.greenhouseId ?? "gh1";
+    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId is required" });
+    }
 
     const { rows } = await pool.query(
       `select greenhouse_id, actuator, action, duration_ms, ts

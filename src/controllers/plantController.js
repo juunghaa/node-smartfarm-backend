@@ -85,7 +85,12 @@ async function recommend(req, res) {
 // POST /api/plant/register
 async function register(req, res) {
   try {
-    const { greenhouseId = "gh1", plantKey } = req.body;
+    const greenhouseId = req.body.greenhouseId ?? req.body.greenhouseID;
+    const { plantKey } = req.body;
+
+    if (!greenhouseId || typeof greenhouseId !== "string") {
+      return res.status(400).json({ error: "greenhouseId는 필수입니다" });
+    }
 
     if (!plantKey) {
       return res.status(400).json({ error: "plantKey는 필수입니다" });
