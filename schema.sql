@@ -108,8 +108,13 @@ CREATE TABLE public.daily_reports (
     avg_temp numeric,
     avg_humidity numeric,
     avg_soil numeric,
+    avg_lux numeric,
+    data_count integer DEFAULT 0 NOT NULL,
     alert_count integer DEFAULT 0,
+    alert_types jsonb DEFAULT '{}'::jsonb NOT NULL,
+    risk_level character varying(20) DEFAULT 'low'::character varying NOT NULL,
     report_text text,
+    recommendations jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 

@@ -192,15 +192,51 @@ Response
 
 ## 8) 리포트 (Reports)
 
-### GET `/api/reports`
-리포트 이력을 조회합니다.
+### POST `/api/report/daily`
+특정 날짜의 일일 리포트를 생성/저장합니다.  
+이미 같은 `greenhouseId + date`가 있으면 업데이트됩니다(UPSERT).
+
+Body
+- `greenhouseId` (string, 필수)
+- `date` (string, 필수, `YYYY-MM-DD`)
+
+Response 예시
+```json
+{
+  "greenhouseId": "gh1",
+  "date": "2026-04-27",
+  "avgTemp": 25.3,
+  "avgHumidity": 62.1,
+  "avgSoil": 35.4,
+  "avgLux": 500.0,
+  "dataCount": 1440,
+  "alertCount": 2,
+  "alertTypeCounts": {
+    "humidity_high": 1,
+    "pest_risk_high": 1
+  },
+  "riskLevel": "medium",
+  "summary": "오늘 온실은 전반적으로 관리 가능하지만 일부 환경 지표 점검이 필요합니다.",
+  "recommendations": [
+    "토양 수분이 낮아질 경우 관수 장치와 급수 일정을 확인하세요.",
+    "습도가 높은 편이므로 환기 또는 제습을 고려하세요."
+  ],
+  "createdAt": "2026-04-27T20:00:01.123Z"
+}
+```
+
+### GET `/api/report/daily`
+특정 날짜의 일일 리포트를 조회합니다.
 
 Query
 - `greenhouseId` (string, 필수)
-- `limit` (number, 선택, 기본값 `7`, 최소 `1`, 최대 `30`)
+- `date` (string, 필수, `YYYY-MM-DD`)
 
-### GET `/api/reports/today`
-오늘 리포트 1건을 조회합니다.
+Response
+- 리포트 객체 또는 `null`
+
+### GET `/api/report/latest`
+최신 일일 리포트 1건을 조회합니다.
 
 Query
 - `greenhouseId` (string, 필수)
@@ -208,16 +244,10 @@ Query
 Response
 - 리포트 객체 또는 `null`
 
-### POST `/api/reports/generate`
-리포트를 즉시 생성합니다. (수동/테스트 용도)
-
-Body
-- `greenhouseId` (string, 필수)
-
-Response
-```json
-{ "ok": true, "reportText": "..." }
-```
+### (호환용 기존 엔드포인트)
+- `GET /api/reports` : 최근 리포트 목록 조회 (`limit` 지원, 기본 7, 최대 30)
+- `GET /api/reports/today` : 오늘 리포트 조회
+- `POST /api/reports/generate` : 오늘 리포트 즉시 생성
 
 ---
 
@@ -231,4 +261,3 @@ Response
 - `/api/weather`
 - `/api/alerts`
 4. 수동 제어 필요 시 `/api/control` 호출
-
