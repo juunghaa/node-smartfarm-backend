@@ -10,10 +10,10 @@ const attachedGreenhouses = new Set();
 
 function extractGreenhouseIdFromTopic(topic) {
   const parts = String(topic).split("/");
-  if (parts.length >= 3 && parts[0] === "farm" && parts[2] === "sensor") {
-    return parts[1];
-  }
-  return null;
+  if (parts.length !== 3) return null;
+  if (parts[0] !== "farm" || parts[2] !== "sensor") return null;
+  if (!parts[1]) return null;
+  return parts[1];
 }
 
 // 수동 제어용 publish 함수 — controlController에서 호출
@@ -45,8 +45,8 @@ function setupClientHandlers() {
   });
 
   client.on("message", async (topic, message) => {
-    const topicGreenhouseId = extractGreenhouseIdFromTopic(topic);
-    if (!topicGreenhouseId) return;
+    const greenhouseIdFromTopic = extractGreenhouseIdFromTopic(topic);
+    if (!greenhouseIdFromTopic) return;
 
     let data;
     try {
@@ -55,7 +55,7 @@ function setupClientHandlers() {
       return;
     }
 
-    const greenhouseId = data.greenhouseId ?? topicGreenhouseId;
+    const greenhouseId = data.greenhouseId ?? greenhouseIdFromTopic ?? "gh1";
     const temperature = Number(data.temperature);
     const humidity = Number(data.humidity);
     const soil = Number(data.soilMoisture);
