@@ -4,7 +4,9 @@ const { pool } = require("../db/pool");
 const { ENABLE_MQTT, MQTT_URL, MQTT_USERNAME, MQTT_PASSWORD, SENSOR_TOPIC } = require("../config");
 const { runRules } = require("./ruleEngine");
 
-let client = null; // publishCommand에서 쓰려면 밖으로 빼야 함
+let client = null;
+let isConnected = false;
+const attachedGreenhouses = new Set();
 
 function extractGreenhouseIdFromTopic(topic) {
   const parts = String(topic).split("/");
@@ -16,7 +18,7 @@ function extractGreenhouseIdFromTopic(topic) {
 
 // 수동 제어용 publish 함수 — controlController에서 호출
 function publishCommand(greenhouseId, actuator, payload) {
-  if (!client) {
+  if (!client || !isConnected) {
     console.warn("MQTT not connected, cannot publish");
     return;
   }
@@ -30,24 +32,14 @@ function publishCommand(greenhouseId, actuator, payload) {
   console.log(`📤 Published to ${topic}:`, payload);
 }
 
-function initMqttService() {
-  if (!ENABLE_MQTT) {
-    console.log("MQTT disabled");
-    return;
-  }
-
-  client = mqtt.connect(MQTT_URL, {
-    username: MQTT_USERNAME,
-    password: MQTT_PASSWORD,
-    reconnectPeriod: 5000,
-    connectTimeout: 30 * 1000,
-    rejectUnauthorized: true,
-  });
+function setupClientHandlers() {
+  if (!client) return;
 
   client.on("connect", () => {
+    isConnected = true;
     console.log("MQTT connected:", MQTT_URL);
     client.subscribe(SENSOR_TOPIC, (err) => {
-      if (err) console.error("MQTT subscribe error:", err);
+      if (err) console.error("MQTT subscribe error:", err.message);
       else console.log("Subscribed:", SENSOR_TOPIC);
     });
   });
@@ -65,12 +57,10 @@ function initMqttService() {
 
     const greenhouseId = data.greenhouseId ?? topicGreenhouseId;
     const temperature = Number(data.temperature);
-    const humidity    = Number(data.humidity);
-    const soil        = Number(data.soilMoisture);
-    const lux         = Number(data.lux);
-    const ts          = data.ts ? new Date(data.ts) : new Date();
+    const humidity = Number(data.humidity);
+    const soil = Number(data.soilMoisture);
+    const ts = data.ts ? new Date(data.ts) : new Date();
 
-    // 센서 데이터 DB 저장
     try {
       await pool.query(
         `INSERT INTO sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts)
@@ -78,8 +68,8 @@ function initMqttService() {
         [
           greenhouseId,
           Number.isNaN(temperature) ? null : temperature,
-          Number.isNaN(humidity)    ? null : humidity,
-          Number.isNaN(soil)        ? null : soil,
+          Number.isNaN(humidity) ? null : humidity,
+          Number.isNaN(soil) ? null : soil,
           ts,
         ]
       );
@@ -87,11 +77,10 @@ function initMqttService() {
       console.error("sensor_readings insert error:", e.message);
     }
 
-    // 룰 엔진 실행 (물주기·환기·병해충·LED)
     await runRules(
       {
         greenhouseId,
-        plantType: data.plantType ?? "sansevieria", // 센서 메시지에 포함되거나 기본값
+        plantType: data.plantType ?? "sansevieria",
         temperature,
         humidity,
         soil,
@@ -101,7 +90,74 @@ function initMqttService() {
     );
   });
 
-  client.on("error", (err) => console.error("MQTT error:", err));
+  client.on("error", (err) => {
+    console.error("MQTT error:", err.message);
+  });
+
+  client.on("close", () => {
+    isConnected = false;
+    console.log("MQTT connection closed");
+  });
 }
 
-module.exports = { initMqttService, publishCommand };
+function connectMqtt() {
+  if (!ENABLE_MQTT) return { ok: false, reason: "disabled_by_env" };
+  if (client) return { ok: true, reason: "already_initialized" };
+
+  client = mqtt.connect(MQTT_URL, {
+    username: MQTT_USERNAME,
+    password: MQTT_PASSWORD,
+    reconnectPeriod: 5000,
+    connectTimeout: 30 * 1000,
+    rejectUnauthorized: true,
+  });
+  setupClientHandlers();
+  return { ok: true, reason: "connecting" };
+}
+
+function disconnectMqtt() {
+  if (!client) return;
+  client.end(true);
+  client.removeAllListeners();
+  client = null;
+  isConnected = false;
+}
+
+function onSensorAttached(greenhouseId) {
+  if (!greenhouseId) return { ok: false, reason: "invalid_greenhouse_id" };
+  attachedGreenhouses.add(greenhouseId);
+  return connectMqtt();
+}
+
+function onSensorDetached(greenhouseId) {
+  if (!greenhouseId) return { ok: false, reason: "invalid_greenhouse_id" };
+  attachedGreenhouses.delete(greenhouseId);
+  if (attachedGreenhouses.size === 0) {
+    disconnectMqtt();
+  }
+  return { ok: true, reason: "detached" };
+}
+
+function getMqttStatus() {
+  return {
+    enabled: ENABLE_MQTT,
+    connected: isConnected,
+    attachedGreenhouses: Array.from(attachedGreenhouses),
+  };
+}
+
+function initMqttService() {
+  if (!ENABLE_MQTT) {
+    console.log("MQTT disabled");
+    return;
+  }
+  console.log("MQTT standby: waiting for sensor attach signal");
+}
+
+module.exports = {
+  initMqttService,
+  publishCommand,
+  onSensorAttached,
+  onSensorDetached,
+  getMqttStatus,
+};

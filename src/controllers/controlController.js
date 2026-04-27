@@ -1,21 +1,22 @@
 // src/controllers/controlController.js
 const { publishCommand } = require("../services/mqttService");
 const { pool } = require("../db/pool");
+const { requireGreenhouseId } = require("../utils/requestUtils");
+
+const ALLOWED_ACTUATORS = ["pump", "led", "window"];
+const ALLOWED_ACTIONS = ["ON", "OFF", "OPEN", "CLOSE"];
 
 async function manualControl(req, res) {
   try {
-    const greenhouseId = req.body.greenhouseId ?? req.body.greenhouseID;
+    const greenhouseId = requireGreenhouseId(req.body, res);
+    if (!greenhouseId) return;
+
     const { actuator, action } = req.body;
 
-    if (!greenhouseId || typeof greenhouseId !== "string") {
-      return res.status(400).json({ error: "greenhouseId is required" });
-    }
-
-    const allowed = ["pump", "led", "window"];
-    if (!allowed.includes(actuator)) {
+    if (!ALLOWED_ACTUATORS.includes(actuator)) {
       return res.status(400).json({ error: "Invalid actuator" });
     }
-    if (!["ON", "OFF", "OPEN", "CLOSE"].includes(action)) {
+    if (!ALLOWED_ACTIONS.includes(action)) {
       return res.status(400).json({ error: "Invalid action" });
     }
 

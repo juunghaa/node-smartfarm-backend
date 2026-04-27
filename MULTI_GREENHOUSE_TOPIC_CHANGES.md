@@ -82,3 +82,60 @@ Common behavior:
 
 ### Verification
 - Codebase scan confirms no remaining `farm/gh1`, `?? "gh1"`, or `= "gh1"` in `src`.
+
+## Refactor Update (2026-04-27)
+### Goal
+- Reduce repeated request parsing/validation logic after multi-greenhouse migration.
+
+### Changes
+- Added common request utilities:
+  - `src/utils/requestUtils.js`
+  - `getGreenhouseId(source)`
+  - `requireGreenhouseId(source, res)`
+  - `clampInt(value, fallback, min, max)`
+- Refactored controllers to use common utilities:
+  - `src/controllers/apiController.js`
+  - `src/controllers/alertController.js`
+  - `src/controllers/reportController.js`
+  - `src/controllers/weatherController.js`
+  - `src/controllers/greenhouseController.js`
+  - `src/controllers/controlController.js`
+  - `src/controllers/plantController.js`
+- Refactored `src/app.js` route registration from repeated `app.use` lines to a route list iteration.
+- Introduced controller-level constants in control API:
+  - `ALLOWED_ACTUATORS`
+  - `ALLOWED_ACTIONS`
+
+### Result
+- Greenhouse id validation behavior is now centralized and consistent.
+- Numeric query limit/range handling is centralized and reusable.
+- Route mounting is easier to maintain when adding/removing route modules.
+
+## MQTT Attach-Driven Update (2026-04-27)
+### Goal
+- Prevent automatic MQTT broker connection on server startup.
+- Connect only when user indicates sensor is actually attached.
+
+### Changes
+- `src/services/mqttService.js`
+  - startup behavior changed to standby mode (`initMqttService` no longer auto-connects)
+  - added connection control APIs:
+    - `onSensorAttached(greenhouseId)`
+    - `onSensorDetached(greenhouseId)`
+    - `getMqttStatus()`
+  - tracks attached greenhouse set and disconnects when last attached sensor is detached
+- Added controller:
+  - `src/controllers/mqttController.js`
+- Added routes:
+  - `src/routes/mqtt.js`
+  - `GET /api/mqtt/status`
+  - `POST /api/mqtt/attach` (body: `greenhouseId`)
+  - `POST /api/mqtt/detach` (body: `greenhouseId`)
+- Updated app route registration:
+  - `src/app.js` includes `./routes/mqtt`
+
+### Usage
+1. User connects a sensor: call `POST /api/mqtt/attach` with greenhouse id.
+2. Server connects/subscribes MQTT automatically.
+3. User disconnects sensor: call `POST /api/mqtt/detach`.
+4. If no attached sensors remain, server disconnects MQTT.

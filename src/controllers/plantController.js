@@ -2,6 +2,7 @@
 const { pool } = require("../db/pool");
 const { recommendPlants } = require("../services/plantService");
 const { askGemini } = require("../services/aiService");
+const { requireGreenhouseId } = require("../utils/requestUtils");
 
 // POST /api/plant/recommend
 async function recommend(req, res) {
@@ -85,12 +86,10 @@ async function recommend(req, res) {
 // POST /api/plant/register
 async function register(req, res) {
   try {
-    const greenhouseId = req.body.greenhouseId ?? req.body.greenhouseID;
-    const { plantKey } = req.body;
+    const greenhouseId = requireGreenhouseId(req.body, res);
+    if (!greenhouseId) return;
 
-    if (!greenhouseId || typeof greenhouseId !== "string") {
-      return res.status(400).json({ error: "greenhouseId는 필수입니다" });
-    }
+    const { plantKey } = req.body;
 
     if (!plantKey) {
       return res.status(400).json({ error: "plantKey는 필수입니다" });

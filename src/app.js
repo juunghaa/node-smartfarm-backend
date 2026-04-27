@@ -8,13 +8,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/api", require("./routes/apiRoutes")); 
-app.use("/api", require("./routes/control")); 
-app.use("/api", require("./routes/weather")); 
-app.use("/api", require("./routes/greenhouse"));
-app.use("/api", require("./routes/alert"));
-app.use("/api", require("./routes/plant"));
-app.use("/api", require("./routes/report"));
+[
+  "./routes/apiRoutes",
+  "./routes/control",
+  "./routes/weather",
+  "./routes/greenhouse",
+  "./routes/mqtt",
+  "./routes/alert",
+  "./routes/plant",
+  "./routes/report",
+].forEach((routePath) => {
+  app.use("/api", require(routePath));
+});
 
 module.exports = app;
 

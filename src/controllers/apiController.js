@@ -1,13 +1,12 @@
 // API 쿼리 처리 담당 
 
 const { pool } = require("../db/pool");
+const { requireGreenhouseId, clampInt } = require("../utils/requestUtils");
 
 async function getLatest(req, res) {
   try {
-    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
-    if (!greenhouseId || typeof greenhouseId !== "string") {
-      return res.status(400).json({ error: "greenhouseId is required" });
-    }
+    const greenhouseId = requireGreenhouseId(req.query, res);
+    if (!greenhouseId) return;
 
     const { rows } = await pool.query(
       `select greenhouse_id, temperature, humidity, soil_moisture, ts
@@ -27,14 +26,9 @@ async function getLatest(req, res) {
 
 async function getHistory(req, res) {
   try {
-    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
-    if (!greenhouseId || typeof greenhouseId !== "string") {
-      return res.status(400).json({ error: "greenhouseId is required" });
-    }
-    const minutes = Number(req.query.minutes ?? 60);
-    const safeMinutes = Number.isNaN(minutes)
-      ? 60
-      : Math.min(Math.max(minutes, 1), 24 * 60);
+    const greenhouseId = requireGreenhouseId(req.query, res);
+    if (!greenhouseId) return;
+    const safeMinutes = clampInt(req.query.minutes, 60, 1, 24 * 60);
 
     const { rows } = await pool.query(
       `select greenhouse_id, temperature, humidity, soil_moisture, ts
@@ -54,10 +48,8 @@ async function getHistory(req, res) {
 
 async function getActuators(req, res) {
   try {
-    const greenhouseId = req.query.greenhouseId ?? req.query.greenhouseID;
-    if (!greenhouseId || typeof greenhouseId !== "string") {
-      return res.status(400).json({ error: "greenhouseId is required" });
-    }
+    const greenhouseId = requireGreenhouseId(req.query, res);
+    if (!greenhouseId) return;
 
     const { rows } = await pool.query(
       `select greenhouse_id, actuator, action, duration_ms, ts
