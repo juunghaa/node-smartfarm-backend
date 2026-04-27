@@ -6,7 +6,6 @@ const { runRules } = require("./ruleEngine");
 
 let client = null;
 let isConnected = false;
-const attachedGreenhouses = new Set();
 
 function extractGreenhouseIdFromTopic(topic) {
   const parts = String(topic).split("/");
@@ -14,6 +13,17 @@ function extractGreenhouseIdFromTopic(topic) {
   if (parts[0] !== "farm" || parts[2] !== "sensor") return null;
   if (!parts[1]) return null;
   return parts[1];
+}
+
+async function isSensorEnabled(greenhouseId) {
+  const { rows } = await pool.query(
+    `SELECT use_sensor FROM greenhouses WHERE greenhouse_id = $1`,
+    [greenhouseId]
+  );
+
+  // greenhouses에 등록되지 않은 온실이면 무시
+  if (!rows[0]) return false;
+  return rows[0].use_sensor === true;
 }
 
 // 수동 제어용 publish 함수 — controlController에서 호출
@@ -45,49 +55,57 @@ function setupClientHandlers() {
   });
 
   client.on("message", async (topic, message) => {
-    const greenhouseIdFromTopic = extractGreenhouseIdFromTopic(topic);
-    if (!greenhouseIdFromTopic) return;
-
-    let data;
     try {
-      data = JSON.parse(message.toString());
-    } catch {
-      return;
-    }
+      const greenhouseIdFromTopic = extractGreenhouseIdFromTopic(topic);
+      if (!greenhouseIdFromTopic) return;
 
-    const greenhouseId = data.greenhouseId ?? greenhouseIdFromTopic ?? "gh1";
-    const temperature = Number(data.temperature);
-    const humidity = Number(data.humidity);
-    const soil = Number(data.soilMoisture);
-    const ts = data.ts ? new Date(data.ts) : new Date();
+      const sensorEnabled = await isSensorEnabled(greenhouseIdFromTopic);
+      if (!sensorEnabled) return;
 
-    try {
-      await pool.query(
-        `INSERT INTO sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
+      let data;
+      try {
+        data = JSON.parse(message.toString());
+      } catch {
+        return;
+      }
+
+      const greenhouseId = data.greenhouseId ?? greenhouseIdFromTopic;
+      const temperature = Number(data.temperature);
+      const humidity = Number(data.humidity);
+      const soil = Number(data.soilMoisture);
+      const ts = data.ts ? new Date(data.ts) : new Date();
+
+      try {
+        await pool.query(
+          `INSERT INTO sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            greenhouseId,
+            Number.isNaN(temperature) ? null : temperature,
+            Number.isNaN(humidity) ? null : humidity,
+            Number.isNaN(soil) ? null : soil,
+            ts,
+          ]
+        );
+      } catch (e) {
+        console.error("sensor_readings insert error:", e.message);
+      }
+
+      await runRules(
+        {
           greenhouseId,
-          Number.isNaN(temperature) ? null : temperature,
-          Number.isNaN(humidity) ? null : humidity,
-          Number.isNaN(soil) ? null : soil,
-          ts,
-        ]
+          plantType: data.plantType ?? "sansevieria",
+          temperature,
+          humidity,
+          soil,
+          lux: Number(data.lux) || NaN,
+        },
+        (actuator, payload) => publishCommand(greenhouseId, actuator, payload)
       );
     } catch (e) {
-      console.error("sensor_readings insert error:", e.message);
+      console.error("MQTT message handler error:", e.message);
+      return;
     }
-
-    await runRules(
-      {
-        greenhouseId,
-        plantType: data.plantType ?? "sansevieria",
-        temperature,
-        humidity,
-        soil,
-        lux: Number(data.lux) || NaN,
-      },
-      (actuator, payload) => publishCommand(greenhouseId, actuator, payload)
-    );
   });
 
   client.on("error", (err) => {
@@ -100,9 +118,13 @@ function setupClientHandlers() {
   });
 }
 
-function connectMqtt() {
-  if (!ENABLE_MQTT) return { ok: false, reason: "disabled_by_env" };
-  if (client) return { ok: true, reason: "already_initialized" };
+function initMqttService() {
+  if (!ENABLE_MQTT) {
+    console.log("MQTT disabled");
+    return;
+  }
+
+  if (client) return;
 
   client = mqtt.connect(MQTT_URL, {
     username: MQTT_USERNAME,
@@ -112,52 +134,9 @@ function connectMqtt() {
     rejectUnauthorized: true,
   });
   setupClientHandlers();
-  return { ok: true, reason: "connecting" };
-}
-
-function disconnectMqtt() {
-  if (!client) return;
-  client.end(true);
-  client.removeAllListeners();
-  client = null;
-  isConnected = false;
-}
-
-function onSensorAttached(greenhouseId) {
-  if (!greenhouseId) return { ok: false, reason: "invalid_greenhouse_id" };
-  attachedGreenhouses.add(greenhouseId);
-  return connectMqtt();
-}
-
-function onSensorDetached(greenhouseId) {
-  if (!greenhouseId) return { ok: false, reason: "invalid_greenhouse_id" };
-  attachedGreenhouses.delete(greenhouseId);
-  if (attachedGreenhouses.size === 0) {
-    disconnectMqtt();
-  }
-  return { ok: true, reason: "detached" };
-}
-
-function getMqttStatus() {
-  return {
-    enabled: ENABLE_MQTT,
-    connected: isConnected,
-    attachedGreenhouses: Array.from(attachedGreenhouses),
-  };
-}
-
-function initMqttService() {
-  if (!ENABLE_MQTT) {
-    console.log("MQTT disabled");
-    return;
-  }
-  console.log("MQTT standby: waiting for sensor attach signal");
 }
 
 module.exports = {
   initMqttService,
   publishCommand,
-  onSensorAttached,
-  onSensorDetached,
-  getMqttStatus,
 };

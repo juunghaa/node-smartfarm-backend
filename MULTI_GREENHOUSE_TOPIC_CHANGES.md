@@ -139,3 +139,27 @@ Common behavior:
 2. Server connects/subscribes MQTT automatically.
 3. User disconnects sensor: call `POST /api/mqtt/detach`.
 4. If no attached sensors remain, server disconnects MQTT.
+
+## MQTT Always-On + use_sensor Update (2026-04-27)
+### Goal
+- Remove standby/attach-based MQTT connection control.
+- Keep MQTT always connected on server startup.
+- Control sensor usage per greenhouse with DB flag (`greenhouses.use_sensor`).
+
+### Changes
+- `src/services/mqttService.js`
+  - removed standby/attach/detach connection logic
+  - MQTT now connects during `initMqttService()` when `ENABLE_MQTT=true`
+  - message handler now:
+    - extracts `greenhouseId` from `farm/{greenhouseId}/sensor`
+    - checks `SELECT use_sensor FROM greenhouses WHERE greenhouse_id = $1`
+    - ignores message when `use_sensor` is false or greenhouse is not registered
+    - only then saves `sensor_readings` and runs `runRules`
+- Removed attach-only API artifacts:
+  - deleted `src/controllers/mqttController.js`
+  - deleted `src/routes/mqtt.js`
+  - removed `./routes/mqtt` from `src/app.js`
+- `src/controllers/greenhouseController.js`
+  - upsert now supports `useSensor` (or `use_sensor`) and persists to DB
+- `schema.sql`
+  - `greenhouses` table includes `use_sensor boolean DEFAULT true NOT NULL`

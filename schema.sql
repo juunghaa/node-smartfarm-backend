@@ -147,6 +147,7 @@ CREATE TABLE public.greenhouses (
     greenhouse_id character varying(50) NOT NULL,
     plant_type character varying(50) DEFAULT 'sansevieria'::character varying NOT NULL,
     location_type character varying(20) DEFAULT 'indoor'::character varying NOT NULL,
+    use_sensor boolean DEFAULT true NOT NULL,
     lat numeric,
     lon numeric,
     created_at timestamp with time zone DEFAULT now() NOT NULL
@@ -583,4 +584,3 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES 
 --
 
 \unrestrict fhWhv4V8XVxzM8igTyPq7o0qPQrJHt2ob6XdoMvhdsopRmdHxpbTVd6StjlyhSm
-

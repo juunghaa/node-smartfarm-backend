@@ -13,7 +13,6 @@ app.use(express.json());
   "./routes/control",
   "./routes/weather",
   "./routes/greenhouse",
-  "./routes/mqtt",
   "./routes/alert",
   "./routes/plant",
   "./routes/report",
