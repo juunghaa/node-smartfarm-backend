@@ -473,6 +473,14 @@ ALTER TABLE ONLY public.user_plants
 
 
 --
+-- Name: user_plants user_plants_greenhouse_id_plant_key_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_plants
+    ADD CONSTRAINT user_plants_greenhouse_id_plant_key_key UNIQUE (greenhouse_id, plant_key);
+
+
+--
 -- Name: weather_logs weather_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: jun8ha
 --
 
@@ -500,6 +508,13 @@ CREATE INDEX idx_sensor_readings_gh_ts ON public.sensor_readings USING btree (gr
 
 ALTER TABLE ONLY public.user_plants
     ADD CONSTRAINT user_plants_plant_key_fkey FOREIGN KEY (plant_key) REFERENCES public.plants(plant_key);
+
+--
+-- Name: user_plants user_plants_greenhouse_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_plants
+    ADD CONSTRAINT user_plants_greenhouse_id_fkey FOREIGN KEY (greenhouse_id) REFERENCES public.greenhouses(greenhouse_id);
 
 
 --

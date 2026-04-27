@@ -4,9 +4,12 @@ const { recommendPlants } = require("../services/plantService");
 const { askGemini } = require("../services/aiService");
 const { requireGreenhouseId } = require("../utils/requestUtils");
 
+const LOCATION_TYPES = ["indoor", "outdoor"];
+const LEVEL_TYPES = ["low", "medium", "high"];
+
 // POST /api/plant/recommend
 async function recommend(req, res) {
-    console.log("[/api/plant/recommend] called:", req.body);
+  console.log("[/api/plant/recommend] called:", req.body);
 
   try {
     const {
@@ -18,6 +21,18 @@ async function recommend(req, res) {
 
     if (!locationType) {
       return res.status(400).json({ error: "locationType은 필수입니다" });
+    }
+    if (!LOCATION_TYPES.includes(locationType)) {
+      return res.status(400).json({ error: "locationType은 indoor 또는 outdoor 여야 합니다" });
+    }
+    if (lightLevel !== undefined && !LEVEL_TYPES.includes(lightLevel)) {
+      return res.status(400).json({ error: "lightLevel은 low|medium|high 중 하나여야 합니다" });
+    }
+    if (waterFreq !== undefined && !LEVEL_TYPES.includes(waterFreq)) {
+      return res.status(400).json({ error: "waterFreq는 low|medium|high 중 하나여야 합니다" });
+    }
+    if (bugSensitive !== undefined && typeof bugSensitive !== "boolean") {
+      return res.status(400).json({ error: "bugSensitive는 boolean 값이어야 합니다" });
     }
 
     // 1. 조건 매칭으로 식물 후보 추출
@@ -85,32 +100,51 @@ async function recommend(req, res) {
 
 // POST /api/plant/register
 async function register(req, res) {
+  let client;
   try {
     const greenhouseId = requireGreenhouseId(req.body, res);
     if (!greenhouseId) return;
 
     const { plantKey } = req.body;
 
-    if (!plantKey) {
+    if (!plantKey || typeof plantKey !== "string") {
       return res.status(400).json({ error: "plantKey는 필수입니다" });
     }
 
-    await pool.query(
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    await client.query(
       `INSERT INTO user_plants (greenhouse_id, plant_key)
        VALUES ($1, $2)
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT (greenhouse_id, plant_key) DO NOTHING`,
       [greenhouseId, plantKey]
     );
 
-    await pool.query(
+    const updateResult = await client.query(
       `UPDATE greenhouses SET plant_type = $1 WHERE greenhouse_id = $2`,
       [plantKey, greenhouseId]
     );
+    if (updateResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "greenhouseId not found" });
+    }
+
+    await client.query("COMMIT");
 
     res.json({ ok: true, greenhouseId, plantKey });
   } catch (e) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // ignore rollback error
+      }
+    }
     console.error("/api/plant/register error:", e.message);
     res.status(500).json({ error: e.message });
+  } finally {
+    if (client) client.release();
   }
 }
 
