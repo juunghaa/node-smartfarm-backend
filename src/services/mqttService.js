@@ -1,7 +1,7 @@
 // src/services/mqttService.js
 const mqtt = require("mqtt");
 const { pool } = require("../db/pool");
-const { ENABLE_MQTT, MQTT_URL, SENSOR_TOPIC, PUMP_TOPIC } = require("../config");
+const { ENABLE_MQTT, MQTT_URL, MQTT_USERNAME, MQTT_PASSWORD, SENSOR_TOPIC, PUMP_TOPIC } = require("../config");
 const { runRules } = require("./ruleEngine");
 
 let client = null; // publishCommand에서 쓰려면 밖으로 빼야 함
@@ -12,18 +12,25 @@ function publishCommand(actuator, payload) {
     console.warn("MQTT not connected, cannot publish");
     return;
   }
-  const topic = `smartfarm/${actuator}/command`;
+  // const topic = `smartfarm/${actuator}/command`;
+  const topic = actuator === "pump" ? PUMP_TOPIC : `farm/gh1/actuator/${actuator}`;
   client.publish(topic, JSON.stringify(payload));
   console.log(`📤 Published to ${topic}:`, payload);
 }
 
 function initMqttService() {
-  if (!ENABLE_MQTT) {
+  if (ENABLE_MQTT !== "true") {
     console.log("MQTT disabled");
     return;
   }
 
-  client = mqtt.connect(MQTT_URL);
+  client = mqtt.connect(MQTT_URL, {
+    username: MQTT_USERNAME,
+    password: MQTT_PASSWORD,
+    reconnectPeriod: 5000,
+    connectTimeout: 30 * 1000,
+    rejectUnauthorized: true,
+  });
 
   client.on("connect", () => {
     console.log("MQTT connected:", MQTT_URL);
