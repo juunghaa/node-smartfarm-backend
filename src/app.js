@@ -15,6 +15,7 @@ app.use(express.json());
   "./routes/greenhouse",
   "./routes/alert",
   "./routes/plant",
+  "./routes/disease",
   "./routes/report",
 ].forEach((routePath) => {
   app.use("/api", require(routePath));

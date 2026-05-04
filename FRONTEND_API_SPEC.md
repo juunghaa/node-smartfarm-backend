@@ -1,6 +1,6 @@
 # SmartFarm 백엔드 API 명세서 (Frontend 전달용)
 
-최종 수정일: 2026-04-27
+최종 수정일: 2026-05-04
 
 ## 1) 공통
 
@@ -13,6 +13,7 @@
 - 검증 오류: `400` + `{ "error": "..." }`
 - 서버 오류: `500` + `{ "error": "..." }`
 - 요청 제한(식물 추천): `429` + `{ "error": "추천 요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }`
+- 파일 업로드 제한: `400` + `{ "ok": false, "error": "이미지 파일은 최대 5MB까지 업로드할 수 있습니다." }`
 
 ### greenhouseId 정책 (중요)
 - 온실 단위 API는 대부분 `greenhouseId`를 반드시 전달해야 합니다.
@@ -261,3 +262,61 @@ Response
 - `/api/weather`
 - `/api/alerts`
 4. 수동 제어 필요 시 `/api/control` 호출
+
+---
+
+## 10) 질병 이미지 분석 (Disease - Mock)
+
+### POST `/api/disease/predict`
+식물 이미지를 업로드하면 질병 분석(mock) 결과를 반환합니다.  
+현재는 모델 학습 전 단계이므로 mock 응답이며, 추후 실제 모델로 교체 예정입니다.
+
+요청 형식
+- `multipart/form-data`
+- 필드명: `image`
+
+업로드 제약
+- 허용 확장자: `jpg`, `jpeg`, `png`, `webp`
+- 허용 MIME: `image/jpeg`, `image/png`, `image/webp`
+- 최대 용량: `5MB`
+
+성공 응답 예시
+```json
+{
+  "ok": true,
+  "prediction": {
+    "result": "disease",
+    "label": "disease",
+    "confidence": 0.91,
+    "message": "질병이 의심됩니다. 잎의 상태를 확인해주세요."
+  }
+}
+```
+
+정상(healthy) 예시
+```json
+{
+  "ok": true,
+  "prediction": {
+    "result": "healthy",
+    "label": "healthy",
+    "confidence": 0.88,
+    "message": "현재 이미지에서는 뚜렷한 질병 징후가 보이지 않습니다."
+  }
+}
+```
+
+실패 응답 예시
+```json
+{
+  "ok": false,
+  "error": "이미지 파일은 필수입니다."
+}
+```
+
+```json
+{
+  "ok": false,
+  "error": "지원하지 않는 파일 형식입니다. jpg/jpeg/png/webp만 업로드 가능합니다."
+}
+```
