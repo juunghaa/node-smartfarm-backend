@@ -1,4 +1,3 @@
-// src/routes/report.js
 const express = require("express");
 const router = express.Router();
 const {
@@ -9,12 +8,14 @@ const {
   fetchDailyReport,
   fetchLatestReport,
 } = require("../controllers/reportController");
+const { requireSupabaseAuth } = require("../middlewares/supabaseAuthMiddleware");
+const { requireGreenhouseAccess } = require("../middlewares/greenhouseAccessMiddleware");
 
-router.get("/reports",          getReports);
-router.get("/reports/today",    getTodayReport);
-router.post("/reports/generate", generateNow);
-router.post("/report/daily", createDailyReport);
-router.get("/report/daily", fetchDailyReport);
-router.get("/report/latest", fetchLatestReport);
+router.get("/reports", requireSupabaseAuth, requireGreenhouseAccess, getReports);
+router.get("/reports/today", requireSupabaseAuth, requireGreenhouseAccess, getTodayReport);
+router.post("/reports/generate", requireSupabaseAuth, requireGreenhouseAccess, generateNow);
+router.post("/report/daily", requireSupabaseAuth, requireGreenhouseAccess, createDailyReport);
+router.get("/report/daily", requireSupabaseAuth, requireGreenhouseAccess, fetchDailyReport);
+router.get("/report/latest", requireSupabaseAuth, requireGreenhouseAccess, fetchLatestReport);
 
 module.exports = router;

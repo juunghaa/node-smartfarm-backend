@@ -13,10 +13,13 @@
   "type": "commonjs",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "jose": "^5.9.6",
     "mqtt": "^5.15.0",
     "multer": "^1.4.5-lts.2",
     "node-cron": "^4.2.1",

@@ -11,6 +11,10 @@ const OPENWEATHER_LAT     = process.env.OPENWEATHER_LAT ?? "37.5665";
 const OPENWEATHER_LON     = process.env.OPENWEATHER_LON ?? "126.9780";
 const MQTT_USERNAME = process.env.MQTT_USERNAME;
 const MQTT_PASSWORD = process.env.MQTT_PASSWORD;
+const JWT_SECRET = process.env.JWT_SECRET ?? "change-this-in-production";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "7d";
+const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE ?? "authenticated";
 
 module.exports = {
   PORT,
@@ -24,4 +28,8 @@ module.exports = {
   OPENWEATHER_API_KEY,
   OPENWEATHER_LAT,
   OPENWEATHER_LON,
+  JWT_SECRET,
+  JWT_EXPIRES_IN,
+  SUPABASE_URL,
+  SUPABASE_JWT_AUDIENCE,
 };

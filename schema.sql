@@ -150,6 +150,7 @@ ALTER SEQUENCE public.daily_reports_id_seq OWNED BY public.daily_reports.id;
 CREATE TABLE public.greenhouses (
     id integer NOT NULL,
     greenhouse_id character varying(50) NOT NULL,
+    user_id text NOT NULL,
     plant_type character varying(50) DEFAULT 'sansevieria'::character varying NOT NULL,
     location_type character varying(20) DEFAULT 'indoor'::character varying NOT NULL,
     use_sensor boolean DEFAULT true NOT NULL,
