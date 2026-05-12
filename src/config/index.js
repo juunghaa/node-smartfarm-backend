@@ -15,6 +15,7 @@ const JWT_SECRET = process.env.JWT_SECRET ?? "change-this-in-production";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "7d";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE ?? "authenticated";
+const DISEASE_AI_URL = process.env.DISEASE_AI_URL ?? process.env.PYTHON_INFERENCE_URL ?? "";
 
 module.exports = {
   PORT,
@@ -32,4 +33,5 @@ module.exports = {
   JWT_EXPIRES_IN,
   SUPABASE_URL,
   SUPABASE_JWT_AUDIENCE,
+  DISEASE_AI_URL,
 };

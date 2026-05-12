@@ -29,9 +29,10 @@ async function predictDiseaseFromImage(req, res) {
       prediction,
     });
   } catch (e) {
+    console.error("/api/disease/predict error:", e.message);
     return res.status(500).json({
       ok: false,
-      error: e.message || "질병 분석 중 오류가 발생했습니다.",
+      error: "AI 질병 분석 서버 호출에 실패했습니다.",
     });
   } finally {
     await safeUnlink(filePath);

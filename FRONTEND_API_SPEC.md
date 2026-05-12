@@ -1,6 +1,6 @@
 # SmartFarm 백엔드 API 명세서 (Frontend 전달용)
 
-최종 수정일: 2026-05-09
+최종 수정일: 2026-05-12
 
 ## 1) 공통
 
@@ -152,23 +152,37 @@ Response
 
 ---
 
-## 8) 질병 이미지 분석 (Mock)
+## 8) 질병 이미지 분석 (AI 서버 연동)
 
 ### POST `/api/disease/predict`
 - `multipart/form-data`
 - 필드명: `image`
 - 허용 확장자: `jpg`, `jpeg`, `png`, `webp`
 - 최대 크기: `5MB`
+- 백엔드는 업로드 이미지를 FastAPI AI 서버로 전달해 분석 결과를 반환합니다.
 
 성공 응답 예시
 ```json
 {
   "ok": true,
   "prediction": {
-    "result": "disease",
-    "label": "disease",
-    "confidence": 0.91,
-    "message": "질병이 의심됩니다. 잎의 상태를 확인해주세요."
+    "result": "healthy",
+    "label": "healthy",
+    "classIndex": 1,
+    "confidence": 1.0,
+    "probabilities": {
+      "disease": 0.00001,
+      "healthy": 0.99998
+    },
+    "message": "현재 이미지에서는 뚜렷한 질병 징후가 보이지 않습니다."
   }
+}
+```
+
+실패 응답 예시
+```json
+{
+  "ok": false,
+  "error": "AI 질병 분석 서버 호출에 실패했습니다."
 }
 ```

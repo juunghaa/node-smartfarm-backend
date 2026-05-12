@@ -1,28 +1,45 @@
 // src/services/diseaseService.js
+const fs = require("fs");
+const axios = require("axios");
+const FormData = require("form-data");
+const { DISEASE_AI_URL } = require("../config");
 
-/**
- * Mock disease prediction.
- * Later, replace this function body with real model inference.
- */
+function normalizePrediction(raw = {}) {
+  return {
+    result: raw.result ?? null,
+    label: raw.label ?? null,
+    classIndex: raw.class_index ?? null,
+    confidence: raw.confidence ?? null,
+    probabilities: raw.probabilities ?? null,
+    message: raw.message ?? null,
+  };
+}
+
 async function predictDisease(imagePath) {
-  // Keep deterministic enough for quick local testing.
-  const diseaseByPath = typeof imagePath === "string" && imagePath.toLowerCase().includes("disease");
-
-  if (diseaseByPath || Math.random() < 0.5) {
-    return {
-      result: "disease",
-      label: "disease",
-      confidence: 0.91,
-      message: "질병이 의심됩니다. 잎의 상태를 확인해주세요.",
-    };
+  if (!DISEASE_AI_URL) {
+    throw new Error("DISEASE_AI_URL is missing");
   }
 
-  return {
-    result: "healthy",
-    label: "healthy",
-    confidence: 0.88,
-    message: "현재 이미지에서는 뚜렷한 질병 징후가 보이지 않습니다.",
-  };
+  const form = new FormData();
+  form.append("file", fs.createReadStream(imagePath));
+
+  try {
+    const response = await axios.post(DISEASE_AI_URL, form, {
+      headers: form.getHeaders(),
+      timeout: 30000,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+
+    // TODO: prediction result를 disease_logs 테이블에 저장
+    // TODO: result === "disease"이면 alert_logs에 병해 의심 알림 생성
+    return normalizePrediction(response.data);
+  } catch (e) {
+    const status = e.response?.status;
+    const body = e.response?.data;
+    console.error("[diseaseService] AI server call failed:", status, body ?? e.message);
+    throw new Error("AI 질병 분석 서버 호출에 실패했습니다.");
+  }
 }
 
 module.exports = {
