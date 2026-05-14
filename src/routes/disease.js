@@ -4,6 +4,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { predictDiseaseFromImage } = require("../controllers/diseaseController");
+const { requireSupabaseAuth } = require("../middlewares/supabaseAuthMiddleware");
 
 const router = express.Router();
 
@@ -40,7 +41,7 @@ const upload = multer({
   },
 });
 
-router.post("/disease/predict", (req, res) => {
+router.post("/disease/predict", requireSupabaseAuth, (req, res) => {
   upload.single("image")(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {

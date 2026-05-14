@@ -1,41 +1,43 @@
 // src/middlewares/supabaseAuthMiddleware.js
-const { createRemoteJWKSet, jwtVerify } = require("jose");
-const { SUPABASE_URL, SUPABASE_JWT_AUDIENCE } = require("../config");
+const { createClient } = require("@supabase/supabase-js");
+const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = require("../config");
 
-let jwks = null;
-let issuer = null;
+let supabaseAdmin = null;
 
-function getVerifierConfig() {
+function getSupabaseAdminClient() {
   if (!SUPABASE_URL) {
     throw new Error("SUPABASE_URL is missing");
   }
-  if (!jwks) {
-    const base = SUPABASE_URL.replace(/\/+$/, "");
-    jwks = createRemoteJWKSet(new URL(`${base}/auth/v1/.well-known/jwks.json`));
-    issuer = `${base}/auth/v1`;
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is missing");
   }
-  return { jwks, issuer };
+  if (!supabaseAdmin) {
+    supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
+  }
+  return supabaseAdmin;
 }
 
 async function requireSupabaseAuth(req, res, next) {
-  const header = req.headers.authorization || "";
-  const [scheme, token] = header.split(" ");
+  const token = req.headers.authorization?.replace(/^Bearer\s+/i, "").trim();
 
-  if (scheme !== "Bearer" || !token) {
+  if (!token) {
     return res.status(401).json({ ok: false, error: "인증 토큰이 필요합니다." });
   }
 
   try {
-    const { jwks: keyset, issuer: iss } = getVerifierConfig();
-    const { payload } = await jwtVerify(token, keyset, {
-      issuer: iss,
-      audience: SUPABASE_JWT_AUDIENCE,
-    });
+    const supabase = getSupabaseAdminClient();
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data?.user) {
+      return res.status(401).json({ ok: false, error: "유효하지 않은 Supabase 토큰입니다." });
+    }
 
     req.auth = {
-      userId: payload.sub,
-      email: payload.email,
-      raw: payload,
+      userId: data.user.id,
+      email: data.user.email ?? null,
+      raw: data.user,
     };
 
     return next();
