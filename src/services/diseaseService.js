@@ -31,16 +31,29 @@ async function predictDisease(imagePath) {
     );
   }
 
-  const form = new FormData();
-  form.append("file", fs.createReadStream(imagePath));
-
   try {
-    const response = await axios.post(DISEASE_AI_URL, form, {
-      headers: form.getHeaders(),
-      timeout: 30000,
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-    });
+    const sendRequest = async (fieldName) => {
+      const form = new FormData();
+      form.append(fieldName, fs.createReadStream(imagePath));
+      return axios.post(DISEASE_AI_URL, form, {
+        headers: form.getHeaders(),
+        timeout: 30000,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+    };
+
+    let response;
+    try {
+      response = await sendRequest("file");
+    } catch (firstErr) {
+      // FastAPI schema compatibility: some servers expect `image` instead of `file`.
+      if (firstErr.response?.status === 422) {
+        response = await sendRequest("image");
+      } else {
+        throw firstErr;
+      }
+    }
 
     // TODO: prediction result를 disease_logs 테이블에 저장
     // TODO: result === "disease"이면 alert_logs에 병해 의심 알림 생성
