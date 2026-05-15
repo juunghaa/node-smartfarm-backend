@@ -2,7 +2,7 @@
 const fs = require("fs");
 const axios = require("axios");
 const FormData = require("form-data");
-const { DISEASE_AI_URL } = require("../config");
+const { DISEASE_AI_URL, DISEASE_AI_TIMEOUT_MS } = require("../config");
 
 class DiseaseServiceError extends Error {
   constructor(message, statusCode = 500) {
@@ -37,7 +37,7 @@ async function predictDisease(imagePath) {
       form.append(fieldName, fs.createReadStream(imagePath));
       return axios.post(DISEASE_AI_URL, form, {
         headers: form.getHeaders(),
-        timeout: 30000,
+        timeout: DISEASE_AI_TIMEOUT_MS,
         maxBodyLength: Infinity,
         maxContentLength: Infinity,
       });
@@ -50,6 +50,9 @@ async function predictDisease(imagePath) {
       // FastAPI schema compatibility: some servers expect `image` instead of `file`.
       if (firstErr.response?.status === 422) {
         response = await sendRequest("image");
+      } else if (firstErr.code === "ECONNABORTED") {
+        // Render free-tier cold starts can exceed 30s; retry once after timeout.
+        response = await sendRequest("file");
       } else {
         throw firstErr;
       }

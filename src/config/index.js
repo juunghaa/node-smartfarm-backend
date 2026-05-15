@@ -17,6 +17,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE ?? "authenticated";
 const DISEASE_AI_URL = process.env.DISEASE_AI_URL ?? process.env.PYTHON_INFERENCE_URL ?? "";
+const DISEASE_AI_TIMEOUT_MS = Number(process.env.DISEASE_AI_TIMEOUT_MS ?? 70000);
 
 module.exports = {
   PORT,
@@ -36,4 +37,5 @@ module.exports = {
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_JWT_AUDIENCE,
   DISEASE_AI_URL,
+  DISEASE_AI_TIMEOUT_MS,
 };
