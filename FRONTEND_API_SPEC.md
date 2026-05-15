@@ -113,7 +113,48 @@ Body
 
 ---
 
-## 6) 식물
+## 6) 시뮬레이션
+
+### POST `/api/simulate/publish`
+Body
+- `greenhouseId` (string, 필수)
+- `plantType` (string, 선택, 기본값 `sansevieria`)
+- `temperature` (number, 필수)
+- `humidity` (number, 필수)
+- `soilMoisture` (number, 필수)
+- `lux` (number, 선택)
+- `ts` (string, 선택, ISO-8601)
+
+비고
+- 입력값으로 MQTT 토픽 `farm/{greenhouseId}/sensor`에 1회 발행합니다.
+
+### POST `/api/simulate/start`
+Body
+- `greenhouseId` (string, 필수)
+- `plantType` (string, 선택, 기본값 `sansevieria`)
+- `temperature` (number, 필수)
+- `humidity` (number, 필수)
+- `soilMoisture` (number, 필수)
+- `lux` (number, 선택)
+- `intervalMs` (number, 선택, 기본값 `2000`, 최소 `500`, 최대 `60000`)
+- `temperatureDelta` (number, 선택, 기본값 `0.4`)
+- `humidityDelta` (number, 선택, 기본값 `1.0`)
+- `soilDelta` (number, 선택, 기본값 `0.6`)
+- `luxDelta` (number, 선택, 기본값 `300`)
+
+비고
+- 온실별로 1개 시뮬레이션 세션만 유지됩니다. 이미 실행 중이면 기존 세션을 교체합니다.
+
+### POST `/api/simulate/stop`
+Body
+- `greenhouseId` (string, 필수)
+
+비고
+- 해당 온실의 주기 발행 시뮬레이션을 중지합니다.
+
+---
+
+## 7) 식물
 
 ### GET `/api/plant/list`
 - 식물 마스터 목록 조회
@@ -141,7 +182,7 @@ Response
 
 ---
 
-## 7) 리포트
+## 8) 리포트
 
 ### GET `/api/reports`
 ### GET `/api/reports/today`
@@ -156,7 +197,7 @@ Response
 
 ---
 
-## 8) 질병 이미지 분석 (AI 서버 연동)
+## 9) 질병 이미지 분석 (AI 서버 연동)
 
 ### POST `/api/disease/predict`
 - `multipart/form-data`

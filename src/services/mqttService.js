@@ -30,16 +30,33 @@ async function isSensorEnabled(greenhouseId) {
 function publishCommand(greenhouseId, actuator, payload) {
   if (!client || !isConnected) {
     console.warn("MQTT not connected, cannot publish");
-    return;
+    return false;
   }
   if (!greenhouseId) {
     console.warn("No greenhouseId provided, cannot publish");
-    return;
+    return false;
   }
 
   const topic = `farm/${greenhouseId}/actuator/${actuator}`;
   client.publish(topic, JSON.stringify(payload));
   console.log(`📤 Published to ${topic}:`, payload);
+  return true;
+}
+
+function publishSensorData(greenhouseId, payload) {
+  if (!client || !isConnected) {
+    console.warn("MQTT not connected, cannot publish sensor data");
+    return false;
+  }
+  if (!greenhouseId) {
+    console.warn("No greenhouseId provided, cannot publish sensor data");
+    return false;
+  }
+
+  const topic = `farm/${greenhouseId}/sensor`;
+  client.publish(topic, JSON.stringify(payload));
+  console.log(`📤 Published sensor to ${topic}:`, payload);
+  return true;
 }
 
 function setupClientHandlers() {
@@ -139,4 +156,5 @@ function initMqttService() {
 module.exports = {
   initMqttService,
   publishCommand,
+  publishSensorData,
 };
