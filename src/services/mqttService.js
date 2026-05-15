@@ -90,18 +90,20 @@ function setupClientHandlers() {
       const temperature = Number(data.temperature);
       const humidity = Number(data.humidity);
       const soil = Number(data.soilMoisture);
+      const lux = Number(data.lux);
       const ts = data.ts ? new Date(data.ts) : new Date();
 
       try {
         await pool.query(
-          `INSERT INTO sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts)
-           VALUES ($1, $2, $3, $4, $5)`,
+          `INSERT INTO sensor_readings (greenhouse_id, temperature, humidity, soil_moisture, ts, lux)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             greenhouseId,
             Number.isNaN(temperature) ? null : temperature,
             Number.isNaN(humidity) ? null : humidity,
             Number.isNaN(soil) ? null : soil,
             ts,
+            Number.isNaN(lux) ? null : lux,
           ]
         );
       } catch (e) {

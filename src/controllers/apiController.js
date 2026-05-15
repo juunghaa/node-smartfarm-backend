@@ -14,6 +14,7 @@ async function getLatest(req, res) {
          sr.temperature,
          sr.humidity,
          sr.soil_moisture,
+         sr.lux,
          sr.ts,
          case
            when g.location_type = 'outdoor'
@@ -56,6 +57,7 @@ async function getHistory(req, res) {
          sr.temperature,
          sr.humidity,
          sr.soil_moisture,
+         sr.lux,
          sr.ts,
          case
            when g.location_type = 'outdoor'
