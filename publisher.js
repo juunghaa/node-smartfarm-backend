@@ -1,11 +1,18 @@
 const mqtt = require("mqtt");
+require("dotenv").config();
 
-// MQTT 브로커 연결 (기본 로컬 호스트 1883 포트)
-const client = mqtt.connect("mqtt://localhost:1883");
+const MQTT_URL = process.env.MQTT_URL || "mqtt://localhost:1883";
+const MQTT_USERNAME = process.env.MQTT_USERNAME;
+const MQTT_PASSWORD = process.env.MQTT_PASSWORD;
+const GREENHOUSE_ID = process.env.PUBLISH_GREENHOUSE_ID || "gh1";
 
 // 메시지 전송 및 수신을 위한 토픽 설정
-const SENSOR_TOPIC = "farm/gh1/sensor";
-const PUMP_TOPIC = "farm/gh1/actuator/pump";
+const SENSOR_TOPIC = `farm/${GREENHOUSE_ID}/sensor`;
+const PUMP_TOPIC = `farm/${GREENHOUSE_ID}/actuator/pump`;
+const client = mqtt.connect(MQTT_URL, {
+  username: MQTT_USERNAME,
+  password: MQTT_PASSWORD,
+});
 
 /**
  * 숫자를 최소값과 최대값 사이로 제한하는 유틸리티 함수
@@ -51,7 +58,7 @@ function tick() {
 
   // 최종 전송할 데이터 객체(Payload) 구성
   return {
-    greenhouseId: "gh1",
+    greenhouseId: GREENHOUSE_ID,
     plantType: "sansevieria", // 요청하신 식물 타입 추가
     temperature: state.temperature,
     humidity: state.humidity,
@@ -63,7 +70,7 @@ function tick() {
 
 // MQTT 브로커 연결 이벤트
 client.on("connect", () => {
-  console.log("✅ [Simulator] Connected to MQTT Broker");
+  console.log(`✅ [Simulator] Connected to MQTT Broker: ${MQTT_URL}`);
 
   // 제어 명령(펌프) 토픽 구독
   client.subscribe(PUMP_TOPIC, (err) => {

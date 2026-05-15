@@ -9,10 +9,30 @@ async function getLatest(req, res) {
     if (!greenhouseId) return;
 
     const { rows } = await pool.query(
-      `select greenhouse_id, temperature, humidity, soil_moisture, ts
-       from sensor_readings
-       where greenhouse_id = $1
-       order by ts desc
+      `select
+         sr.greenhouse_id,
+         sr.temperature,
+         sr.humidity,
+         sr.soil_moisture,
+         sr.ts,
+         case
+           when g.location_type = 'outdoor'
+            and g.use_sensor = false
+            and sr.soil_moisture is null
+           then true
+           else false
+         end as is_weather_fallback,
+         case
+           when g.location_type = 'outdoor'
+            and g.use_sensor = false
+            and sr.soil_moisture is null
+           then 'weather_fallback'
+           else 'sensor'
+         end as data_source
+       from sensor_readings sr
+       join greenhouses g on g.greenhouse_id = sr.greenhouse_id
+       where sr.greenhouse_id = $1
+       order by sr.ts desc
        limit 1`,
       [greenhouseId]
     );
@@ -31,11 +51,31 @@ async function getHistory(req, res) {
     const safeMinutes = clampInt(req.query.minutes, 60, 1, 24 * 60);
 
     const { rows } = await pool.query(
-      `select greenhouse_id, temperature, humidity, soil_moisture, ts
-       from sensor_readings
-       where greenhouse_id = $1
-         and ts >= now() - ($2::text || ' minutes')::interval
-       order by ts asc`,
+      `select
+         sr.greenhouse_id,
+         sr.temperature,
+         sr.humidity,
+         sr.soil_moisture,
+         sr.ts,
+         case
+           when g.location_type = 'outdoor'
+            and g.use_sensor = false
+            and sr.soil_moisture is null
+           then true
+           else false
+         end as is_weather_fallback,
+         case
+           when g.location_type = 'outdoor'
+            and g.use_sensor = false
+            and sr.soil_moisture is null
+           then 'weather_fallback'
+           else 'sensor'
+         end as data_source
+       from sensor_readings sr
+       join greenhouses g on g.greenhouse_id = sr.greenhouse_id
+       where sr.greenhouse_id = $1
+         and sr.ts >= now() - ($2::text || ' minutes')::interval
+       order by sr.ts asc`,
       [greenhouseId, String(safeMinutes)]
     );
 

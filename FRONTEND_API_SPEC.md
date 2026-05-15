@@ -97,6 +97,10 @@ Body
 `/api/alerts` 추가 Query
 - `limit` (number, 선택, 기본값 `20`, 최소 `1`, 최대 `100`)
 
+`/api/latest`, `/api/history` 응답 필드 추가
+- `is_weather_fallback` (boolean): 실외 + 센서 미사용 상태에서 날씨 대체값이면 `true`
+- `data_source` (`sensor` | `weather_fallback`): 데이터 출처
+
 ---
 
 ## 5) 제어
