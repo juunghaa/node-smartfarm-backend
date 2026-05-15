@@ -65,6 +65,9 @@ Response 예시
 Query
 - `greenhouseId` (string, 필수)
 
+### GET `/api/greenhouses`
+- 로그인 사용자가 소유한 온실 목록 조회
+
 ### POST `/api/greenhouse`
 Body
 - `greenhouseId` (string, 필수)
@@ -77,6 +80,14 @@ Body
 비고
 - 최초 생성 시 요청 사용자 소유(`user_id`)로 저장됩니다.
 - 기존 온실은 소유자만 수정 가능합니다.
+
+### DELETE `/api/greenhouse`
+Body 또는 Query
+- `greenhouseId` (string, 필수)
+
+비고
+- 소유자 본인 온실만 삭제 가능합니다.
+- 관련 센서/날씨/알림/동작/리포트/식물 등록 데이터도 함께 정리됩니다.
 
 ---
 
@@ -179,6 +190,15 @@ Response
 ```json
 { "ok": true, "greenhouseId": "gh1", "plantKey": "sansevieria" }
 ```
+
+### DELETE `/api/plant/register`
+Body
+- `greenhouseId` (string, 필수)
+- `plantKey` (string, 선택)
+
+비고
+- `plantKey`를 보내면 해당 식물만 등록 해제합니다.
+- `plantKey`를 생략하면 해당 온실의 등록 식물을 모두 해제합니다.
 
 ---
 

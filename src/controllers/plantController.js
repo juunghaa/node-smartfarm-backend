@@ -183,6 +183,82 @@ async function register(req, res) {
   }
 }
 
+// DELETE /api/plant/register
+async function unregister(req, res) {
+  let client;
+  try {
+    const greenhouseId = requireGreenhouseId(req.body, res);
+    if (!greenhouseId) return;
+
+    const normalizedPlantKey = normalizePlantKey(req.body?.plantKey);
+
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const greenhouseResult = await client.query(
+      `SELECT plant_type FROM greenhouses WHERE greenhouse_id = $1`,
+      [greenhouseId]
+    );
+    if (greenhouseResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "greenhouseId not found" });
+    }
+
+    let deletedRows = [];
+    if (normalizedPlantKey) {
+      const { rows } = await client.query(
+        `DELETE FROM user_plants
+         WHERE greenhouse_id = $1 AND plant_key = $2
+         RETURNING plant_key`,
+        [greenhouseId, normalizedPlantKey]
+      );
+      deletedRows = rows;
+    } else {
+      const { rows } = await client.query(
+        `DELETE FROM user_plants
+         WHERE greenhouse_id = $1
+         RETURNING plant_key`,
+        [greenhouseId]
+      );
+      deletedRows = rows;
+    }
+
+    const currentPlantType = greenhouseResult.rows[0].plant_type;
+    const removedCurrentPlant = normalizedPlantKey
+      ? currentPlantType === normalizedPlantKey
+      : deletedRows.some((row) => row.plant_key === currentPlantType);
+
+    if (removedCurrentPlant) {
+      await client.query(
+        `UPDATE greenhouses
+         SET plant_type = $1
+         WHERE greenhouse_id = $2`,
+        ["sansevieria", greenhouseId]
+      );
+    }
+
+    await client.query("COMMIT");
+    return res.json({
+      ok: true,
+      greenhouseId,
+      removedPlantKeys: deletedRows.map((row) => row.plant_key),
+      greenhousePlantType: removedCurrentPlant ? "sansevieria" : currentPlantType,
+    });
+  } catch (e) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // ignore rollback error
+      }
+    }
+    console.error("/api/plant/register DELETE error:", e.message);
+    return res.status(500).json({ error: "식물 등록 해제 처리 중 오류가 발생했습니다." });
+  } finally {
+    if (client) client.release();
+  }
+}
+
 // GET /api/plant/list
 async function list(req, res) {
   try {
@@ -199,4 +275,4 @@ async function list(req, res) {
   }
 }
 
-module.exports = { recommend, register, list };
+module.exports = { recommend, register, unregister, list };

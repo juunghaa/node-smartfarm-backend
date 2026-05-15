@@ -1,7 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const router = express.Router();
-const { recommend, register, list } = require("../controllers/plantController");
+const { recommend, register, unregister, list } = require("../controllers/plantController");
 const { requireSupabaseAuth } = require("../middlewares/supabaseAuthMiddleware");
 const { requireGreenhouseAccess } = require("../middlewares/greenhouseAccessMiddleware");
 
@@ -17,6 +17,7 @@ const recommendLimiter = rateLimit({
 
 router.post("/plant/recommend", requireSupabaseAuth, recommendLimiter, recommend);
 router.post("/plant/register", requireSupabaseAuth, requireGreenhouseAccess, register);
+router.delete("/plant/register", requireSupabaseAuth, requireGreenhouseAccess, unregister);
 router.get("/plant/list", requireSupabaseAuth, list);
 
 module.exports = router;
