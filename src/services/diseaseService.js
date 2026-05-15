@@ -4,6 +4,14 @@ const axios = require("axios");
 const FormData = require("form-data");
 const { DISEASE_AI_URL } = require("../config");
 
+class DiseaseServiceError extends Error {
+  constructor(message, statusCode = 500) {
+    super(message);
+    this.name = "DiseaseServiceError";
+    this.statusCode = statusCode;
+  }
+}
+
 function normalizePrediction(raw = {}) {
   return {
     result: raw.result ?? null,
@@ -17,7 +25,10 @@ function normalizePrediction(raw = {}) {
 
 async function predictDisease(imagePath) {
   if (!DISEASE_AI_URL) {
-    throw new Error("DISEASE_AI_URL is missing");
+    throw new DiseaseServiceError(
+      "질병 분석 서버 URL이 설정되지 않았습니다. DISEASE_AI_URL을 확인해주세요.",
+      503
+    );
   }
 
   const form = new FormData();
@@ -35,13 +46,24 @@ async function predictDisease(imagePath) {
     // TODO: result === "disease"이면 alert_logs에 병해 의심 알림 생성
     return normalizePrediction(response.data);
   } catch (e) {
+    if (e.code === "ECONNABORTED") {
+      throw new DiseaseServiceError("질병 분석 서버 응답 시간이 초과되었습니다.", 504);
+    }
+    if (e.code === "ECONNREFUSED" || e.code === "ENOTFOUND") {
+      throw new DiseaseServiceError("질병 분석 서버에 연결할 수 없습니다.", 502);
+    }
+
     const status = e.response?.status;
     const body = e.response?.data;
     console.error("[diseaseService] AI server call failed:", status, body ?? e.message);
-    throw new Error("AI 질병 분석 서버 호출에 실패했습니다.");
+    if (status && status >= 400 && status < 500) {
+      throw new DiseaseServiceError("질병 분석 요청 형식이 올바르지 않습니다.", 502);
+    }
+    throw new DiseaseServiceError("AI 질병 분석 서버 호출에 실패했습니다.", 502);
   }
 }
 
 module.exports = {
   predictDisease,
+  DiseaseServiceError,
 };

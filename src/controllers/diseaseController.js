@@ -1,6 +1,6 @@
 // src/controllers/diseaseController.js
 const fs = require("fs/promises");
-const { predictDisease } = require("../services/diseaseService");
+const { predictDisease, DiseaseServiceError } = require("../services/diseaseService");
 
 async function safeUnlink(path) {
   if (!path) return;
@@ -30,9 +30,10 @@ async function predictDiseaseFromImage(req, res) {
     });
   } catch (e) {
     console.error("/api/disease/predict error:", e.message);
-    return res.status(500).json({
+    const statusCode = e instanceof DiseaseServiceError ? e.statusCode : 500;
+    return res.status(statusCode).json({
       ok: false,
-      error: "AI 질병 분석 서버 호출에 실패했습니다.",
+      error: e.message || "AI 질병 분석 서버 호출에 실패했습니다.",
     });
   } finally {
     await safeUnlink(filePath);
