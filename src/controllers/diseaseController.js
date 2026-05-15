@@ -1,5 +1,6 @@
 // src/controllers/diseaseController.js
 const fs = require("fs/promises");
+const crypto = require("crypto");
 const { predictDisease, DiseaseServiceError } = require("../services/diseaseService");
 
 async function safeUnlink(path) {
@@ -13,6 +14,10 @@ async function safeUnlink(path) {
 
 async function predictDiseaseFromImage(req, res) {
   const filePath = req.file?.path;
+  const requestId =
+    req.headers["x-request-id"] ||
+    req.headers["x-correlation-id"] ||
+    crypto.randomUUID();
 
   try {
     if (!req.file) {
@@ -22,14 +27,14 @@ async function predictDiseaseFromImage(req, res) {
       });
     }
 
-    const prediction = await predictDisease(filePath);
+    const prediction = await predictDisease(filePath, requestId);
 
     return res.json({
       ok: true,
       prediction,
     });
   } catch (e) {
-    console.error("/api/disease/predict error:", e.message);
+    console.error(`/api/disease/predict error requestId=${requestId}:`, e.message);
     const statusCode = e instanceof DiseaseServiceError ? e.statusCode : 500;
     return res.status(statusCode).json({
       ok: false,

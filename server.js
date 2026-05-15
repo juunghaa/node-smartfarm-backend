@@ -9,6 +9,7 @@ const { initMqttService } = require("./src/services/mqttService");
 const { initWeatherScheduler } = require("./src/services/weatherService");
 const { initReportScheduler } = require("./src/services/reportService");
 const { syncFromPublicApi } = require("./src/services/plantService");
+const { initDiseaseAiWarmup } = require("./src/services/diseaseService");
 
 async function startServer() {
   try {
@@ -18,6 +19,7 @@ async function startServer() {
     initMqttService();
     initWeatherScheduler();
     initReportScheduler();
+    initDiseaseAiWarmup();
 
     await syncFromPublicApi();
     
