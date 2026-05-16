@@ -66,6 +66,12 @@ function getState(greenhouseId) {
       lastWatered:  0,
       waterLocked:  false,
       windowOpen:   false, // 창문 현재 상태 추적
+      alerts: {
+        humidityHigh: false,
+        tempHigh: false,
+        tempLow: false,
+        pestRiskHigh: false,
+      },
     };
   }
   return greenhouseState[greenhouseId];
@@ -180,34 +186,55 @@ async function runRules(data, publishFn) {
                    : "high_temp";
       await openWindow(greenhouseId, state, publishFn, reason);
 
-      if (humidityTooHigh) {
+      if (humidityTooHigh && !state.alerts.humidityHigh) {
         await saveAlert(greenhouseId, "humidity_high",
           `습도 ${humidity}% 초과 (기준 ${config.humidity.max}%) → 환기 중`);
+        state.alerts.humidityHigh = true;
       }
-      if (tempTooHigh) {
+      if (tempTooHigh && !state.alerts.tempHigh) {
         await saveAlert(greenhouseId, "temp_high",
           `온도 ${temperature}°C 초과 (기준 ${config.temperature.max}°C) → 환기 중`);
+        state.alerts.tempHigh = true;
       }
     } else if (canClose) {
       await closeWindow(greenhouseId, state, publishFn, "conditions_normalized");
+      // 히스테리시스 여유 구간으로 내려오면 다음 알림 재발행 가능하도록 reset
+      state.alerts.humidityHigh = false;
+      state.alerts.tempHigh = false;
     }
   }
 
   // ── 룰 3: 저온 경보 (창문 닫기 포함) ─────────────────
-  if (!Number.isNaN(temperature) && temperature < config.temperature.min) {
-    console.log(`🥶 [${config.label}] 저온 경보 ${temperature}°C`);
-    // 저온이면 창문 닫아야 함
-    await closeWindow(greenhouseId, state, publishFn, "low_temp_protection");
-    await saveAlert(greenhouseId, "temp_low",
-      `온도 ${temperature}°C 미만 (기준 ${config.temperature.min}°C) → 창문 닫음`);
+  if (!Number.isNaN(temperature)) {
+    const tempTooLow = temperature < config.temperature.min;
+    const tempRecovered = temperature >= config.temperature.min + 2;
+
+    if (tempTooLow && !state.alerts.tempLow) {
+      console.log(`🥶 [${config.label}] 저온 경보 ${temperature}°C`);
+      // 저온이면 창문 닫아야 함
+      await closeWindow(greenhouseId, state, publishFn, "low_temp_protection");
+      await saveAlert(greenhouseId, "temp_low",
+        `온도 ${temperature}°C 미만 (기준 ${config.temperature.min}°C) → 창문 닫음`);
+      state.alerts.tempLow = true;
+    } else if (tempRecovered) {
+      state.alerts.tempLow = false;
+    }
   }
 
   // ── 룰 4: 병해충 위험도 ──────────────────────────────
   if (!Number.isNaN(temperature) && !Number.isNaN(humidity)) {
-    if (temperature > config.pestRisk.temp && humidity > config.pestRisk.humidity) {
+    const pestRiskActive =
+      temperature > config.pestRisk.temp && humidity > config.pestRisk.humidity;
+    const pestRiskRecovered =
+      temperature <= config.pestRisk.temp - 1 || humidity <= config.pestRisk.humidity - 5;
+
+    if (pestRiskActive && !state.alerts.pestRiskHigh) {
       console.log(`🐛 [${config.label}] 병해충 위험 (${temperature}°C, ${humidity}%)`);
       await saveAlert(greenhouseId, "pest_risk_high",
         `온도 ${temperature}°C + 습도 ${humidity}% → 병해충 위험`);
+      state.alerts.pestRiskHigh = true;
+    } else if (pestRiskRecovered) {
+      state.alerts.pestRiskHigh = false;
     }
   }
 
