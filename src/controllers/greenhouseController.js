@@ -95,6 +95,7 @@ async function deleteGreenhouse(req, res) {
     await client.query(`DELETE FROM actuator_logs WHERE greenhouse_id = $1`, [greenhouseId]);
     await client.query(`DELETE FROM daily_reports WHERE greenhouse_id = $1`, [greenhouseId]);
     await client.query(`DELETE FROM user_plants WHERE greenhouse_id = $1`, [greenhouseId]);
+    await client.query(`DELETE FROM web_push_subscriptions WHERE greenhouse_id = $1`, [greenhouseId]);
 
     const { rowCount } = await client.query(
       `DELETE FROM greenhouses WHERE greenhouse_id = $1 AND user_id = $2`,

@@ -22,6 +22,9 @@ const AI_MAX_RETRIES = Number(process.env.AI_MAX_RETRIES ?? 2);
 const AI_RETRY_BASE_DELAY_MS = Number(process.env.AI_RETRY_BASE_DELAY_MS ?? 500);
 const AI_WARMUP_ENABLED = process.env.AI_WARMUP_ENABLED === "true";
 const AI_WARMUP_INTERVAL_MS = Number(process.env.AI_WARMUP_INTERVAL_MS ?? 840000);
+const WEB_PUSH_VAPID_PUBLIC_KEY = process.env.WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
+const WEB_PUSH_VAPID_PRIVATE_KEY = process.env.WEB_PUSH_VAPID_PRIVATE_KEY ?? "";
+const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT ?? "";
 
 module.exports = {
   PORT,
@@ -46,4 +49,7 @@ module.exports = {
   AI_RETRY_BASE_DELAY_MS,
   AI_WARMUP_ENABLED,
   AI_WARMUP_INTERVAL_MS,
+  WEB_PUSH_VAPID_PUBLIC_KEY,
+  WEB_PUSH_VAPID_PRIVATE_KEY,
+  WEB_PUSH_SUBJECT,
 };

@@ -19,6 +19,7 @@ app.use(express.json());
   "./routes/disease",
   "./routes/report",
   "./routes/simulate",
+  "./routes/push",
 ].forEach((routePath) => {
   app.use("/api", require(routePath));
 });

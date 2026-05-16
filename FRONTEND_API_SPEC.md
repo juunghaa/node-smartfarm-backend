@@ -251,3 +251,71 @@ Body
   "error": "AI 질병 분석 서버 호출에 실패했습니다."
 }
 ```
+
+---
+
+## 10) 웹 푸시 (Firebase 없이 Web Push 표준)
+
+사전 조건
+- HTTPS 환경에서 동작 (localhost 개발 예외)
+- 백엔드에 VAPID 환경변수 설정 필요:
+  - `WEB_PUSH_VAPID_PUBLIC_KEY`
+  - `WEB_PUSH_VAPID_PRIVATE_KEY`
+  - `WEB_PUSH_SUBJECT` (예: `mailto:you@example.com`)
+
+### GET `/api/push/public-key`
+- 프론트가 Push 구독 시 사용할 VAPID 공개키 조회
+
+Response 예시
+```json
+{
+  "ok": true,
+  "publicKey": "<VAPID_PUBLIC_KEY>"
+}
+```
+
+### POST `/api/push/subscribe`
+- 사용자 브라우저 PushSubscription 등록/갱신
+
+Body
+- `greenhouseId` (string, 필수)
+- `subscription` (object, 필수)
+  - `endpoint` (string)
+  - `expirationTime` (number|null)
+  - `keys.p256dh` (string)
+  - `keys.auth` (string)
+
+Response 예시
+```json
+{ "ok": true }
+```
+
+### DELETE `/api/push/subscribe`
+- 사용자 브라우저 구독 해제
+
+Body
+- `greenhouseId` (string, 필수)
+- `endpoint` (string, 필수)
+
+Response 예시
+```json
+{ "ok": true, "removed": true }
+```
+
+### POST `/api/push/test`
+- 현재 사용자/온실의 등록된 구독들에 테스트 푸시 발송
+
+Body
+- `greenhouseId` (string, 필수)
+- `title` (string, 선택, 기본값: `"테스트 알림"`)
+- `body` (string, 선택, 기본값: `"웹 푸시 연결 테스트입니다."`)
+- `url` (string, 선택, 기본값: `"/"`)
+
+Response 예시
+```json
+{
+  "ok": true,
+  "sent": 1,
+  "failed": 0
+}
+```

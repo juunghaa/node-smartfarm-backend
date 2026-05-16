@@ -12,6 +12,16 @@ const {
   AI_WARMUP_INTERVAL_MS,
 } = require("../config");
 
+function resolveAiUrls(rawUrl) {
+  const normalized = (rawUrl || "").trim().replace(/\/+$/, "");
+  const baseUrl = normalized.endsWith("/predict")
+    ? normalized.slice(0, -"/predict".length)
+    : normalized;
+  const predictUrl = `${baseUrl}/predict`;
+  const healthUrl = `${baseUrl}/health`;
+  return { normalized, baseUrl, predictUrl, healthUrl };
+}
+
 class DiseaseServiceError extends Error {
   constructor(message, statusCode = 500) {
     super(message);
@@ -41,6 +51,8 @@ async function predictDisease(imagePath, externalRequestId) {
 
   const requestId = externalRequestId || crypto.randomUUID();
   const startedAt = Date.now();
+  const { baseUrl, predictUrl } = resolveAiUrls(DISEASE_AI_URL);
+  console.log(`[diseaseService] requestId=${requestId} AI baseURL=${baseUrl} endpoint=${predictUrl}`);
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const totalAttempts = Math.max(1, AI_MAX_RETRIES + 1);
@@ -49,7 +61,7 @@ async function predictDisease(imagePath, externalRequestId) {
     const form = new FormData();
     // Retry-safe: recreate stream/form payload for every attempt.
     form.append(fieldName, fs.createReadStream(imagePath));
-    return axios.post(DISEASE_AI_URL, form, {
+    return axios.post(predictUrl, form, {
       headers: form.getHeaders(),
       timeout: DISEASE_AI_TIMEOUT_MS,
       maxBodyLength: Infinity,
@@ -132,12 +144,9 @@ async function predictDisease(imagePath, externalRequestId) {
 
 async function warmupAiServer() {
   if (!DISEASE_AI_URL) return;
-  const normalized = DISEASE_AI_URL.replace(/\/+$/, "");
-  const baseUrl = normalized.endsWith("/predict")
-    ? normalized.slice(0, -"/predict".length)
-    : normalized;
-  const healthUrl = `${baseUrl}/health`;
+  const { baseUrl, predictUrl, healthUrl } = resolveAiUrls(DISEASE_AI_URL);
   try {
+    console.log(`[diseaseService] warmup baseURL=${baseUrl} endpoint=${predictUrl} health=${healthUrl}`);
     const response = await axios.get(healthUrl, {
       timeout: Math.min(DISEASE_AI_TIMEOUT_MS, 5000),
       validateStatus: () => true,
