@@ -1,6 +1,6 @@
 # SmartFarm 백엔드 API 명세서 (Frontend 전달용)
 
-최종 수정일: 2026-05-12
+최종 수정일: 2026-05-16
 
 ## 1) 공통
 
@@ -210,12 +210,28 @@ Body
 ### POST `/api/report/daily`
 ### GET `/api/report/daily`
 ### GET `/api/report/latest`
+### POST `/api/report/chat`
 
 공통
 - 온실 단위 API는 `greenhouseId` 필수
 - `/api/report/daily`는 `date` (`YYYY-MM-DD`) 필수
 - 서버는 매일 20:00(`REPORT_SCHEDULE_TIMEZONE`, 기본 `Asia/Seoul`)에 온실별 일일 리포트를 생성합니다.
 - 웹 푸시 구독이 등록된 경우, 일일 리포트 생성 직후 요약 알림을 자동 발송합니다.
+
+`/api/report/chat` Body
+- `greenhouseId` (string, 필수)
+- `message` (string, 필수, 최대 1000자)
+- `chatHistory` (array, 선택)
+  - 원소: `{ "role": "user" | "assistant", "content": "..." }`
+  - 서버는 최근 10개만 사용
+
+`/api/report/chat` Response 예시
+```json
+{
+  "ok": true,
+  "reply": "오늘 위험도가 높은 이유는 습도와 알림 빈도 증가 때문입니다..."
+}
+```
 
 ---
 

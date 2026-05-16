@@ -5,6 +5,7 @@ const {
   getDailyReport,
   getLatestReport,
   listRecentReports,
+  askReportChat,
   isValidDateString,
 } = require("../services/reportService");
 const { requireGreenhouseId, clampInt } = require("../utils/requestUtils");
@@ -103,6 +104,33 @@ async function fetchLatestReport(req, res) {
   }
 }
 
+// POST /api/report/chat
+async function chatReportAssistant(req, res) {
+  try {
+    const greenhouseId = requireGreenhouseId(req.body, res);
+    if (!greenhouseId) return;
+
+    const rawMessage = String(req.body?.message ?? "").trim();
+    if (!rawMessage) {
+      return res.status(400).json({ error: "message is required" });
+    }
+    if (rawMessage.length > 1000) {
+      return res.status(400).json({ error: "message must be <= 1000 chars" });
+    }
+
+    const { reply } = await askReportChat({
+      greenhouseId,
+      message: rawMessage,
+      chatHistory: req.body?.chatHistory ?? [],
+    });
+
+    return res.json({ ok: true, reply });
+  } catch (e) {
+    console.error("/api/report/chat POST error:", e.message);
+    return res.status(500).json({ error: e.message });
+  }
+}
+
 module.exports = {
   getReports,
   getTodayReport,
@@ -110,4 +138,5 @@ module.exports = {
   createDailyReport,
   fetchDailyReport,
   fetchLatestReport,
+  chatReportAssistant,
 };

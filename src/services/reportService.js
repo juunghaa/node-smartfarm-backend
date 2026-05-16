@@ -278,6 +278,83 @@ async function listRecentReports(greenhouseId, limit = 7) {
   return rows.map(mapReportRow);
 }
 
+async function getReportChatContext(greenhouseId) {
+  const [latestReportRes, latestSensorRes, latestAlertsRes] = await Promise.all([
+    pool.query(
+      `SELECT * FROM daily_reports
+       WHERE greenhouse_id = $1
+       ORDER BY report_date DESC
+       LIMIT 1`,
+      [greenhouseId]
+    ),
+    pool.query(
+      `SELECT greenhouse_id, temperature, humidity, soil_moisture, lux, ts
+       FROM sensor_readings
+       WHERE greenhouse_id = $1
+       ORDER BY ts DESC
+       LIMIT 1`,
+      [greenhouseId]
+    ),
+    pool.query(
+      `SELECT alert_type, message, created_at
+       FROM alert_logs
+       WHERE greenhouse_id = $1
+       ORDER BY created_at DESC
+       LIMIT 5`,
+      [greenhouseId]
+    ),
+  ]);
+
+  return {
+    latestReport: mapReportRow(latestReportRes.rows[0]),
+    latestSensor: latestSensorRes.rows[0] ?? null,
+    latestAlerts: latestAlertsRes.rows ?? [],
+  };
+}
+
+async function askReportChat({ greenhouseId, message, chatHistory = [] }) {
+  const context = await getReportChatContext(greenhouseId);
+
+  const safeHistory = Array.isArray(chatHistory)
+    ? chatHistory
+        .filter((item) => item && (item.role === "user" || item.role === "assistant"))
+        .slice(-10)
+        .map((item) => ({
+          role: item.role,
+          content: String(item.content ?? "").slice(0, 500),
+        }))
+    : [];
+
+  const prompt = `
+당신은 스마트팜 도우미입니다. 과장하지 말고, 제공된 데이터 근거 중심으로 한국어로 간결히 답변하세요.
+데이터가 부족하면 "확인 불가"라고 명시하고 추가 확인 방법을 안내하세요.
+
+[온실 ID]
+${greenhouseId}
+
+[최신 일일 리포트]
+${JSON.stringify(context.latestReport, null, 2)}
+
+[최신 센서값]
+${JSON.stringify(context.latestSensor, null, 2)}
+
+[최근 알림 5개]
+${JSON.stringify(context.latestAlerts, null, 2)}
+
+[최근 대화]
+${JSON.stringify(safeHistory, null, 2)}
+
+[사용자 질문]
+${message}
+`.trim();
+
+  const reply = await askGemini(prompt, false);
+  return {
+    reply: String(reply || "").trim(),
+    context,
+  };
+}
+
 function buildDailyReportPushPayload(report) {
   const title = "Farm-me Fatal 일일 리포트";
   const body = `[${report.greenhouseId}] 위험도 ${String(report.riskLevel || "low").toUpperCase()} · 알림 ${report.alertCount}건`;
@@ -371,5 +448,6 @@ module.exports = {
   getDailyReport,
   getLatestReport,
   listRecentReports,
+  askReportChat,
   isValidDateString,
 };
