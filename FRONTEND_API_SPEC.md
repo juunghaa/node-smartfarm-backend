@@ -214,6 +214,8 @@ Body
 공통
 - 온실 단위 API는 `greenhouseId` 필수
 - `/api/report/daily`는 `date` (`YYYY-MM-DD`) 필수
+- 서버는 매일 20:00(`REPORT_SCHEDULE_TIMEZONE`, 기본 `Asia/Seoul`)에 온실별 일일 리포트를 생성합니다.
+- 웹 푸시 구독이 등록된 경우, 일일 리포트 생성 직후 요약 알림을 자동 발송합니다.
 
 ---
 

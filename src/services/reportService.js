@@ -2,6 +2,8 @@
 const cron = require("node-cron");
 const { pool } = require("../db/pool");
 const { askGemini } = require("./aiService");
+const { sendWebPush } = require("./webPushService");
+const { REPORT_SCHEDULE_TIMEZONE } = require("../config");
 
 function toNumberOrNull(value) {
   if (value === null || value === undefined) return null;
@@ -276,6 +278,65 @@ async function listRecentReports(greenhouseId, limit = 7) {
   return rows.map(mapReportRow);
 }
 
+function buildDailyReportPushPayload(report) {
+  const title = "Farm-me Fatal 일일 리포트";
+  const body = `[${report.greenhouseId}] 위험도 ${String(report.riskLevel || "low").toUpperCase()} · 알림 ${report.alertCount}건`;
+  const url = `/report?greenhouseId=${encodeURIComponent(report.greenhouseId)}&date=${encodeURIComponent(report.date)}`;
+
+  return {
+    title,
+    body,
+    url,
+    greenhouseId: report.greenhouseId,
+    date: report.date,
+    riskLevel: report.riskLevel,
+    alertCount: report.alertCount,
+    ts: new Date().toISOString(),
+  };
+}
+
+async function sendDailyReportPush(report) {
+  if (!report) return { sent: 0, failed: 0 };
+
+  const { rows } = await pool.query(
+    `SELECT endpoint, p256dh_key, auth_key
+     FROM web_push_subscriptions
+     WHERE greenhouse_id = $1`,
+    [report.greenhouseId]
+  );
+
+  if (!rows.length) return { sent: 0, failed: 0 };
+
+  let sent = 0;
+  let failed = 0;
+  const payload = buildDailyReportPushPayload(report);
+
+  await Promise.all(
+    rows.map(async (row) => {
+      const subscription = {
+        endpoint: row.endpoint,
+        keys: {
+          p256dh: row.p256dh_key,
+          auth: row.auth_key,
+        },
+      };
+
+      try {
+        await sendWebPush(subscription, payload);
+        sent += 1;
+      } catch (error) {
+        failed += 1;
+        const statusCode = error?.statusCode;
+        if (statusCode === 404 || statusCode === 410) {
+          await pool.query(`DELETE FROM web_push_subscriptions WHERE endpoint = $1`, [row.endpoint]);
+        }
+      }
+    })
+  );
+
+  return { sent, failed };
+}
+
 // 기존 코드 호환용
 async function saveReport(greenhouseId) {
   return saveDailyReport(greenhouseId, getTodayDateString());
@@ -289,14 +350,18 @@ function initReportScheduler() {
       const { rows } = await pool.query(`SELECT greenhouse_id FROM greenhouses`);
       const today = getTodayDateString();
       for (const row of rows) {
-        await saveDailyReport(row.greenhouse_id, today);
+        const report = await saveDailyReport(row.greenhouse_id, today);
+        const pushResult = await sendDailyReportPush(report);
+        console.log(
+          `🔔 daily report push greenhouse=${row.greenhouse_id} sent=${pushResult.sent} failed=${pushResult.failed}`
+        );
       }
     } catch (e) {
       console.error("리포트 스케줄러 오류:", e.message);
     }
-  });
+  }, { timezone: REPORT_SCHEDULE_TIMEZONE });
 
-  console.log("📋 Report scheduler initialized");
+  console.log(`📋 Report scheduler initialized (20:00 ${REPORT_SCHEDULE_TIMEZONE})`);
 }
 
 module.exports = {
