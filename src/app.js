@@ -11,6 +11,7 @@ app.use(express.json());
 [
   "./routes/apiRoutes",
   "./routes/control",
+  "./routes/device",
   "./routes/weather",
   "./routes/greenhouse",
   "./routes/alert",

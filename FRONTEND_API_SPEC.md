@@ -2,6 +2,19 @@
 
 최종 수정일: 2026-05-18
 
+- 추가 전달 사항
+## 카카오 로그인 플로우
+1. GET /api/auth/kakao/start?redirectTo=http://localhost:5173/home
+2. 응답의 authorizeUrl로 브라우저 리다이렉트
+3. 카카오 로그인 완료 후 redirectTo?token=JWT&provider=kakao 로 리다이렉트
+4. URL에서 token 추출해서 Authorization 헤더에 사용
+
+## 토큰 만료 처리
+- Supabase 토큰: 1시간, supabase.auth.refreshSession()으로 갱신
+- 카카오 커스텀 JWT: 만료 시 /api/auth/kakao/start부터 재시작
+
+-------------
+
 ## 1) 공통
 
 ### Base URL
@@ -57,7 +70,7 @@ Response 예시
 {
   "ok": true,
   "user": {
-    "id": "<supabase-user-uuid-or-kakao:id>",
+    "id": "<UUID>",
     "email": "user@example.com",
     "provider": "supabase",
     "name": "사용자명"
@@ -223,7 +236,7 @@ Body
 
 Response
 ```json
-{ "ok": true, "greenhouseId": "gh1", "plantKey": "sansevieria" }
+{ "ok": true, "greenhouseId": "<요청한 greenhouseId>", "plantKey": "<요청한 plantKey>" }
 ```
 
 ### DELETE `/api/plant/register`
@@ -372,3 +385,67 @@ Response 예시
   "failed": 0
 }
 ```
+
+---
+
+## 11) IoT 기기 등록/프로비저닝
+
+기본
+- 모든 API는 인증 필요 (`Authorization: Bearer <ACCESS_TOKEN>`)
+- 관리자 MQTT 계정은 응답에 노출되지 않습니다.
+- 발급 MQTT 비밀번호는 `provision` 응답에서만 1회 제공됩니다.
+
+### POST `/api/devices/register`
+Body
+- `greenhouseId` (string, 필수)
+- `deviceId` (string, 필수, 최대 128자)
+- `deviceType` (`sensor` | `light` | `pump` | `window`, 필수)
+
+Rate limit
+- IP 기준 시간당 10회
+
+### POST `/api/devices/:deviceId/provision`
+Body
+- `greenhouseId` (string, 필수)
+
+Rate limit
+- IP 기준 시간당 20회
+
+Response 예시
+```json
+{
+  "ok": true,
+  "provisioning": {
+    "mqttUrl": "mqtts://broker.example.com:8883",
+    "username": "dev_DVC001_xxxxx",
+    "password": "one-time-password",
+    "expiresAt": "2026-05-18T07:10:00.000Z",
+    "topics": {
+      "pub": ["farm/gh1/sensor", "farm/gh1/device/sensor/status"],
+      "sub": []
+    }
+  }
+}
+```
+
+### GET `/api/devices`
+Query
+- `greenhouseId` (string, 선택)
+
+### GET `/api/devices/:deviceId/status`
+Response 예시
+```json
+{
+  "ok": true,
+  "status": "online",
+  "deviceStatus": "active",
+  "lastSeenAt": "2026-05-18T07:00:00.000Z"
+}
+```
+
+비고
+- `lastSeenAt` 기준 2분 이내면 `online`, 아니면 `offline`
+
+### POST `/api/devices/:deviceId/revoke`
+비고
+- 활성 자격증명 revoke 후 기기 상태를 `revoked`로 변경합니다.

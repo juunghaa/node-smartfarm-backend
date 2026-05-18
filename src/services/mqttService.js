@@ -3,6 +3,10 @@ const mqtt = require("mqtt");
 const { pool } = require("../db/pool");
 const { ENABLE_MQTT, MQTT_URL, MQTT_USERNAME, MQTT_PASSWORD, SENSOR_TOPIC } = require("../config");
 const { runRules } = require("./ruleEngine");
+const {
+  getSensorDeviceForGreenhouse,
+  updateDeviceLastSeen,
+} = require("../repositories/deviceRepository");
 
 let client = null;
 let isConnected = false;
@@ -87,6 +91,25 @@ function setupClientHandlers() {
       }
 
       const greenhouseId = data.greenhouseId ?? greenhouseIdFromTopic;
+      const deviceId = typeof data.deviceId === "string" ? data.deviceId.trim() : null;
+
+      // 가상 센서(legacy simulator) 호환: deviceId가 없으면 기존 로직 유지
+      if (deviceId) {
+        const mapped = await getSensorDeviceForGreenhouse(deviceId, greenhouseIdFromTopic);
+        if (!mapped) {
+          console.warn(`MQTT rejected: unmapped deviceId=${deviceId}, greenhouse=${greenhouseIdFromTopic}`);
+          return;
+        }
+        if (mapped.status === "revoked") {
+          console.warn(`MQTT rejected: revoked deviceId=${deviceId}`);
+          return;
+        }
+        if (mapped.device_type !== "sensor") {
+          console.warn(`MQTT rejected: non-sensor deviceId=${deviceId}, type=${mapped.device_type}`);
+          return;
+        }
+      }
+
       const temperature = Number(data.temperature);
       const humidity = Number(data.humidity);
       const soil = Number(data.soilMoisture);
@@ -108,6 +131,10 @@ function setupClientHandlers() {
         );
       } catch (e) {
         console.error("sensor_readings insert error:", e.message);
+      }
+
+      if (deviceId) {
+        await updateDeviceLastSeen(deviceId, ts);
       }
 
       await runRules(
