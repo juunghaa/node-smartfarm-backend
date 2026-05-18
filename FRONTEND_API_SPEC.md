@@ -90,6 +90,7 @@ Response 예시
 비고
 - 카카오 개발자 콘솔 Redirect URI와 `KAKAO_REDIRECT_URI`는 반드시 동일해야 합니다.
 - 예시(배포): `https://node-smartfarm-backend.onrender.com/api/auth/kakao/callback`
+- 카카오 사용자도 내부 `user.id`는 UUID 형식으로 정규화되어 저장/조회됩니다.
 
 ---
 

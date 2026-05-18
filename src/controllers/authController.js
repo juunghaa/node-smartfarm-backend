@@ -9,6 +9,7 @@ const {
   KAKAO_REDIRECT_URI,
   KAKAO_DEFAULT_REDIRECT_TO,
 } = require("../config");
+const { deterministicUuidFromExternalId } = require("../utils/identity");
 
 function notSupported(req, res) {
   return res.status(410).json({
@@ -152,7 +153,7 @@ async function kakaoCallback(req, res) {
     const email = profile?.kakao_account?.email ?? null;
 
     const appUser = {
-      id: `kakao:${kakaoId}`,
+      id: deterministicUuidFromExternalId("kakao", kakaoId),
       kakaoId,
       name: nickname,
       email,
