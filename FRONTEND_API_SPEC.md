@@ -1,6 +1,6 @@
 # SmartFarm 백엔드 API 명세서 (Frontend 전달용)
 
-최종 수정일: 2026-05-16
+최종 수정일: 2026-05-18
 
 ## 1) 공통
 
@@ -17,10 +17,13 @@
 - 서버 오류: `500` + `{ "error": "..." }`
 - 요청 제한(식물 추천): `429` + `{ "error": "추천 요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }`
 
-### 인증 방식 (Supabase)
-- 프론트에서 Supabase Auth로 로그인/회원가입을 처리합니다.
-- 백엔드 API 호출 시 Supabase Access Token을 헤더에 포함합니다.
-- 헤더: `Authorization: Bearer <SUPABASE_ACCESS_TOKEN>`
+### 인증 방식 (Hybrid: Supabase + Kakao Custom OAuth)
+- Google/Email 로그인: Supabase Auth를 사용합니다.
+- Kakao 로그인: 백엔드 커스텀 OAuth(`/api/auth/kakao/*`)를 사용합니다.
+- 백엔드 API 호출 시 아래 토큰 중 하나를 헤더에 포함합니다.
+  - Supabase Access Token
+  - Kakao 커스텀 OAuth로 발급된 백엔드 JWT
+- 헤더: `Authorization: Bearer <ACCESS_TOKEN>`
 
 ### greenhouseId 정책
 - 온실 단위 API는 `greenhouseId`가 필수입니다.
@@ -45,17 +48,48 @@
 
 ### GET `/api/auth/me`
 - 현재 토큰의 사용자 식별 정보를 확인합니다.
+- 인증 토큰은 아래 2종을 모두 허용합니다.
+  - Supabase Access Token
+  - Kakao 커스텀 OAuth로 발급된 백엔드 JWT
 
 Response 예시
 ```json
 {
   "ok": true,
   "user": {
-    "id": "<supabase-user-uuid>",
-    "email": "user@example.com"
+    "id": "<supabase-user-uuid-or-kakao:id>",
+    "email": "user@example.com",
+    "provider": "supabase",
+    "name": "사용자명"
   }
 }
 ```
+
+### GET `/api/auth/kakao/start`
+- 카카오 커스텀 OAuth 시작 URL을 발급합니다.
+
+Query
+- `redirectTo` (string, 선택): 로그인 완료 후 프론트로 리다이렉트할 URL
+
+Response 예시
+```json
+{
+  "ok": true,
+  "authorizeUrl": "https://kauth.kakao.com/oauth/authorize?...",
+  "state": "<signed-state-jwt>"
+}
+```
+
+### GET `/api/auth/kakao/callback`
+- 카카오 인가 코드 콜백 엔드포인트입니다.
+- 서버가 카카오 토큰 교환/프로필 조회 후, `redirectTo`로 리다이렉트합니다.
+- 리다이렉트 URL Query에 아래가 추가됩니다.
+  - `token`: 백엔드 JWT
+  - `provider`: `kakao`
+
+비고
+- 카카오 개발자 콘솔 Redirect URI와 `KAKAO_REDIRECT_URI`는 반드시 동일해야 합니다.
+- 예시(배포): `https://node-smartfarm-backend.onrender.com/api/auth/kakao/callback`
 
 ---
 
